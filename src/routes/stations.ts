@@ -1,378 +1,358 @@
-import { Hono } from 'hono';
-import { requireAuth, requireRole } from '../middleware/auth';
-import { generateQRData } from '../utils/auth';
-import { sendEmail, applicationEmailTemplate } from '../utils/email';
-import type { Env } from '../types';
+// 주유소 API 라우트 (공개 + 사장님)
+import { Hono } from 'hono'
+import { authMiddleware, requireRole } from '../middleware/auth'
+import { generateId } from '../utils/jwt'
+import type { Env, JWTPayload } from '../types'
 
-const stations = new Hono<{ Bindings: Env }>();
+type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
 
-// =====================
-// 공개 API
-// =====================
+const stations = new Hono<AppEnv>()
 
-// GET /api/stations/nearby - 주변 주유소 검색
+// ============ 공개 API ============
+
+// 주유소 검색 (위치 기반 + 키워드)
 stations.get('/nearby', async (c) => {
-  const lat = parseFloat(c.req.query('latitude') || '0');
-  const lng = parseFloat(c.req.query('longitude') || '0');
-  const radius = parseFloat(c.req.query('radius') || '5'); // km
-  const keyword = c.req.query('keyword') || '';
+  const lat = parseFloat(c.req.query('latitude') || '0')
+  const lng = parseFloat(c.req.query('longitude') || '0')
+  const keyword = c.req.query('keyword') || ''
+  const limit = parseInt(c.req.query('limit') || '20')
 
-  try {
-    let query: string;
-    let bindings: any[];
+  let query: string
+  let params: any[]
 
-    if (keyword) {
-      // 키워드 검색
-      query = `
-        SELECT gs.*, u.name as owner_name,
-          (SELECT COUNT(*) FROM coupons WHERE station_id = gs.id AND is_active = 1) as coupon_count
-        FROM gas_stations gs
-        JOIN users u ON gs.owner_id = u.id
-        WHERE gs.is_active = 1 AND (gs.station_name LIKE ? OR gs.address LIKE ?)
-        LIMIT 50
-      `;
-      bindings = [`%${keyword}%`, `%${keyword}%`];
-    } else if (lat && lng) {
-      // GPS 기반 검색 (Haversine formula approximation)
-      query = `
-        SELECT gs.*, u.name as owner_name,
-          (SELECT COUNT(*) FROM coupons WHERE station_id = gs.id AND is_active = 1) as coupon_count,
-          (6371 * acos(cos(radians(?)) * cos(radians(latitude)) * cos(radians(longitude) - radians(?)) + sin(radians(?)) * sin(radians(latitude)))) AS distance
-        FROM gas_stations gs
-        JOIN users u ON gs.owner_id = u.id
-        WHERE gs.is_active = 1 AND gs.latitude IS NOT NULL
-        HAVING distance <= ?
-        ORDER BY distance ASC
-        LIMIT 50
-      `;
-      bindings = [lat, lng, lat, radius];
-    } else {
-      query = `
-        SELECT gs.*, u.name as owner_name,
-          (SELECT COUNT(*) FROM coupons WHERE station_id = gs.id AND is_active = 1) as coupon_count
-        FROM gas_stations gs
-        JOIN users u ON gs.owner_id = u.id
-        WHERE gs.is_active = 1
-        ORDER BY gs.created_at DESC
-        LIMIT 50
-      `;
-      bindings = [];
-    }
-
-    const { results } = await c.env.DB.prepare(query).bind(...bindings).all();
-    return c.json({ stations: results });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  if (keyword) {
+    query = `
+      SELECT s.*, 
+        (SELECT COUNT(*) FROM coupons WHERE station_id = s.id AND is_active = 1) as coupon_count
+      FROM stations s
+      WHERE s.is_active = 1 AND s.is_closed = 0
+        AND (s.station_name LIKE ? OR s.address LIKE ?)
+      ORDER BY s.station_name
+      LIMIT ?
+    `
+    const kw = `%${keyword}%`
+    params = [kw, kw, limit]
+  } else if (lat && lng) {
+    // 위도/경도 기반 거리 계산 (Haversine 근사)
+    query = `
+      SELECT s.*,
+        (SELECT COUNT(*) FROM coupons WHERE station_id = s.id AND is_active = 1) as coupon_count,
+        ROUND(
+          6371 * acos(
+            cos(radians(?)) * cos(radians(s.latitude)) *
+            cos(radians(s.longitude) - radians(?)) +
+            sin(radians(?)) * sin(radians(s.latitude))
+          ), 2
+        ) AS distance
+      FROM stations s
+      WHERE s.is_active = 1 AND s.is_closed = 0
+        AND s.latitude IS NOT NULL AND s.longitude IS NOT NULL
+      ORDER BY distance
+      LIMIT ?
+    `
+    params = [lat, lng, lat, limit]
+  } else {
+    query = `
+      SELECT s.*,
+        (SELECT COUNT(*) FROM coupons WHERE station_id = s.id AND is_active = 1) as coupon_count
+      FROM stations s
+      WHERE s.is_active = 1 AND s.is_closed = 0
+      ORDER BY s.created_at DESC
+      LIMIT ?
+    `
+    params = [limit]
   }
-});
 
-// GET /api/stations/:stationId/info - 주유소 상세 정보
-stations.get('/:stationId/info', async (c) => {
-  const stationId = parseInt(c.req.param('stationId'));
+  const result = await c.env.DB.prepare(query).bind(...params).all()
+  return c.json({ stations: result.results })
+})
+
+// 주유소 상세 정보
+stations.get('/:id/info', async (c) => {
+  const id = c.req.param('id')
   const station = await c.env.DB.prepare(
-    'SELECT gs.*, u.name as owner_name FROM gas_stations gs JOIN users u ON gs.owner_id = u.id WHERE gs.id = ? AND gs.is_active = 1'
-  ).bind(stationId).first<any>();
+    `SELECT id, station_name, address, address_detail, latitude, longitude, phone, car_wash_type, is_active, is_closed
+     FROM stations WHERE id = ? AND is_active = 1`
+  ).bind(id).first()
 
-  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404);
-  return c.json({ station });
-});
+  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404)
+  return c.json({ station })
+})
 
-// GET /api/stations/:stationId/coupons - 주유소 쿠폰 목록
-stations.get('/:stationId/coupons', async (c) => {
-  const stationId = parseInt(c.req.param('stationId'));
-  const { results } = await c.env.DB.prepare(
-    'SELECT * FROM coupons WHERE station_id = ? AND is_active = 1 ORDER BY discount_price ASC'
-  ).bind(stationId).all();
+// 주유소 쿠폰 목록 (공개)
+stations.get('/:id/coupons', async (c) => {
+  const stationId = c.req.param('id')
+  const coupons = await c.env.DB.prepare(
+    `SELECT id, title, description, original_price, discount_price, wash_count,
+            total_stock, remaining_stock, is_active
+     FROM coupons
+     WHERE station_id = ? AND is_active = 1
+       AND (total_stock IS NULL OR remaining_stock > 0)
+     ORDER BY discount_price ASC`
+  ).bind(stationId).all()
 
-  return c.json({ coupons: results });
-});
+  return c.json({ coupons: coupons.results })
+})
 
-// =====================
-// 사장님 API
-// =====================
+// ============ 사장님 API ============
 
-// POST /api/owner/apply-station - 주유소 등록 신청
-stations.post('/owner/apply', requireAuth, requireRole('station_owner'), async (c) => {
-  try {
-    const body = await c.req.json();
-    const user = c.get('user') as any;
-    const {
-      station_name, address, latitude, longitude, phone,
-      car_wash_type, business_registration, bank_name, bank_account, bank_holder
-    } = body;
+// 주유소 신청 (서류 포함)
+stations.post('/apply', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const body = await c.req.json()
+  const {
+    station_name, address, address_detail, latitude, longitude, phone,
+    car_wash_type, business_reg_number, bank_name, account_number, account_holder,
+    business_reg_image_key, account_image_key
+  } = body
 
-    if (!station_name || !address || !phone || !business_registration) {
-      return c.json({ error: '필수 항목을 모두 입력해주세요.' }, 400);
-    }
-
-    const result = await c.env.DB.prepare(`
-      INSERT INTO gas_station_applications 
-      (owner_id, station_name, address, latitude, longitude, phone, car_wash_type, business_registration, bank_name, bank_account, bank_holder)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).bind(
-      user.userId, station_name, address, latitude || null, longitude || null,
-      phone, car_wash_type || 'automatic', business_registration,
-      bank_name || null, bank_account || null, bank_holder || null
-    ).run();
-
-    return c.json({ success: true, applicationId: result.meta.last_row_id }, 201);
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  if (!station_name || !address || !business_reg_number || !bank_name || !account_number || !account_holder) {
+    return c.json({ error: '필수 정보를 모두 입력해주세요.' }, 400)
   }
-});
 
-// POST /api/owner/apply/:id/upload - 서류 업로드
-stations.post('/owner/apply/:id/upload', requireAuth, requireRole('station_owner'), async (c) => {
-  try {
-    const appId = parseInt(c.req.param('id'));
-    const user = c.get('user') as any;
-    const formData = await c.req.formData();
-    
-    const app = await c.env.DB.prepare(
-      'SELECT * FROM gas_station_applications WHERE id = ? AND owner_id = ?'
-    ).bind(appId, user.userId).first<any>();
-    
-    if (!app) return c.json({ error: '신청 내역을 찾을 수 없습니다.' }, 404);
-
-    const businessDoc = formData.get('business_doc') as File | null;
-    const accountDoc = formData.get('account_doc') as File | null;
-
-    let businessDocUrl = app.business_doc_url;
-    let accountDocUrl = app.account_doc_url;
-
-    if (businessDoc && c.env.R2) {
-      const key = `applications/${appId}/business_${Date.now()}.${businessDoc.name.split('.').pop()}`;
-      await c.env.R2.put(key, await businessDoc.arrayBuffer(), {
-        httpMetadata: { contentType: businessDoc.type }
-      });
-      businessDocUrl = key;
-    }
-
-    if (accountDoc && c.env.R2) {
-      const key = `applications/${appId}/account_${Date.now()}.${accountDoc.name.split('.').pop()}`;
-      await c.env.R2.put(key, await accountDoc.arrayBuffer(), {
-        httpMetadata: { contentType: accountDoc.type }
-      });
-      accountDocUrl = key;
-    }
-
-    await c.env.DB.prepare(
-      'UPDATE gas_station_applications SET business_doc_url = ?, account_doc_url = ? WHERE id = ?'
-    ).bind(businessDocUrl, accountDocUrl, appId).run();
-
-    return c.json({ success: true, businessDocUrl, accountDocUrl });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  // 기존 pending 신청 확인
+  const pending = await c.env.DB.prepare(
+    `SELECT id FROM station_applications WHERE owner_id = ? AND status = 'pending'`
+  ).bind(user.userId).first()
+  if (pending) {
+    return c.json({ error: '이미 심사 중인 신청이 있습니다.' }, 400)
   }
-});
 
-// GET /api/owner/applications - 내 신청 내역
-stations.get('/owner/applications', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const { results } = await c.env.DB.prepare(
-    'SELECT * FROM gas_station_applications WHERE owner_id = ? ORDER BY applied_at DESC'
-  ).bind(user.userId).all();
+  const result = await c.env.DB.prepare(
+    `INSERT INTO station_applications 
+     (owner_id, station_name, address, address_detail, latitude, longitude, phone,
+      car_wash_type, business_reg_number, business_reg_image_key, bank_name, 
+      account_number, account_holder, account_image_key)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(
+    user.userId, station_name, address, address_detail || null,
+    latitude || null, longitude || null, phone || null,
+    car_wash_type || 'automatic', business_reg_number,
+    business_reg_image_key || null, bank_name, account_number, account_holder,
+    account_image_key || null
+  ).run()
 
-  return c.json({ applications: results });
-});
+  return c.json({ id: result.meta.last_row_id, message: '신청이 접수되었습니다. 검토 후 승인 연락 드리겠습니다.' }, 201)
+})
 
-// GET /api/owner/stations - 내 주유소 목록
-stations.get('/owner/stations', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const { results } = await c.env.DB.prepare(
-    'SELECT * FROM gas_stations WHERE owner_id = ? AND is_active = 1 ORDER BY created_at DESC'
-  ).bind(user.userId).all();
+// 내 신청 목록
+stations.get('/my-applications', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const apps = await c.env.DB.prepare(
+    `SELECT id, station_name, address, status, reject_reason, created_at, reviewed_at
+     FROM station_applications WHERE owner_id = ? ORDER BY created_at DESC`
+  ).bind(user.userId).all()
 
-  return c.json({ stations: results });
-});
+  return c.json({ applications: apps.results })
+})
 
-// GET /api/owner/stations/:stationId/summary - 주유소 요약
-stations.get('/owner/stations/:stationId/summary', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const stationId = parseInt(c.req.param('stationId'));
+// 내 주유소 목록
+stations.get('/my-stations', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationList = await c.env.DB.prepare(
+    `SELECT s.id, s.station_name, s.address, s.phone, s.car_wash_type,
+            s.is_active, s.is_closed, s.qr_code, s.created_at,
+            (SELECT COUNT(*) FROM coupons WHERE station_id = s.id AND is_active = 1) as coupon_count,
+            (SELECT COUNT(*) FROM coupon_usages WHERE station_id = s.id AND used_at >= date('now', '-30 days')) as monthly_usages
+     FROM stations s WHERE s.owner_id = ? ORDER BY s.created_at DESC`
+  ).bind(user.userId).all()
+
+  return c.json({ stations: stationList.results })
+})
+
+// 내 주유소 상세 (사장님)
+stations.get('/my-stations/:id', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('id')
 
   const station = await c.env.DB.prepare(
-    'SELECT * FROM gas_stations WHERE id = ? AND owner_id = ?'
-  ).bind(stationId, user.userId).first<any>();
-  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404);
+    `SELECT * FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first()
 
-  const today = new Date().toISOString().split('T')[0];
-  const monthStart = today.substring(0, 7) + '-01';
+  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404)
+  return c.json({ station })
+})
 
-  const stats = await c.env.DB.prepare(`
-    SELECT 
-      COUNT(*) as total_used,
-      COALESCE(SUM(c.discount_price), 0) as total_amount,
-      COUNT(CASE WHEN DATE(cu.used_at) = ? THEN 1 END) as today_used,
-      COALESCE(SUM(CASE WHEN DATE(cu.used_at) >= ? THEN c.discount_price ELSE 0 END), 0) as month_amount
-    FROM coupon_usages cu
-    JOIN coupons c ON cu.coupon_id = c.id
-    WHERE cu.station_id = ?
-  `).bind(today, monthStart, stationId).first<any>();
+// 주유소 정보 수정 (사장님)
+stations.patch('/my-stations/:id', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('id')
+  const { phone, car_wash_type, is_active } = await c.req.json()
 
-  const pendingSettlement = await c.env.DB.prepare(`
-    SELECT COALESCE(SUM(settlement_amount), 0) as amount
-    FROM settlements WHERE station_id = ? AND status = 'pending'
-  `).bind(stationId).first<any>();
+  const station = await c.env.DB.prepare(
+    `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first()
+  if (!station) return c.json({ error: '권한이 없습니다.' }, 403)
+
+  await c.env.DB.prepare(
+    `UPDATE stations SET phone = COALESCE(?, phone), car_wash_type = COALESCE(?, car_wash_type),
+     is_active = COALESCE(?, is_active), updated_at = datetime('now') WHERE id = ?`
+  ).bind(phone ?? null, car_wash_type ?? null, is_active ?? null, stationId).run()
+
+  return c.json({ message: '수정되었습니다.' })
+})
+
+// QR 코드 조회 (사장님)
+stations.get('/my-stations/:id/qr', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('id')
+
+  const station = await c.env.DB.prepare(
+    `SELECT qr_code, station_name FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first<any>()
+  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404)
+
+  return c.json({ qr_code: station.qr_code, station_name: station.station_name })
+})
+
+// 쿠폰 사용 처리 (QR 스캔 결과)
+stations.post('/my-stations/:id/use-coupon', authMiddleware, requireRole('station_owner', 'admin'), async (c) => {
+  const stationId = parseInt(c.req.param('id'))
+  const { purchase_id, qr_code } = await c.req.json()
+
+  if (!purchase_id || !qr_code) {
+    return c.json({ error: '구매 ID와 QR 코드가 필요합니다.' }, 400)
+  }
+
+  // 주유소 QR 코드 검증
+  const station = await c.env.DB.prepare(
+    `SELECT id, station_name FROM stations WHERE id = ? AND qr_code = ? AND is_active = 1`
+  ).bind(stationId, qr_code).first<any>()
+  if (!station) return c.json({ error: '유효하지 않은 QR 코드입니다.' }, 400)
+
+  // 쿠폰 구매 내역 확인
+  const purchase = await c.env.DB.prepare(
+    `SELECT p.*, c.wash_count, c.discount_price, c.title
+     FROM coupon_purchases p
+     JOIN coupons c ON p.coupon_id = c.id
+     WHERE p.id = ? AND p.station_id = ? AND p.status = 'active' AND p.remaining_uses > 0`
+  ).bind(purchase_id, stationId).first<any>()
+  if (!purchase) return c.json({ error: '사용 가능한 쿠폰이 없습니다.' }, 400)
+
+  const pricePerUse = Math.floor(purchase.unit_price / purchase.wash_count)
+
+  // 쿠폰 사용 처리
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO coupon_usages (purchase_id, user_id, station_id, coupon_id, unit_price, qr_code)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(purchase_id, purchase.user_id, stationId, purchase.coupon_id, pricePerUse, qr_code),
+    c.env.DB.prepare(
+      `UPDATE coupon_purchases SET remaining_uses = remaining_uses - 1,
+       status = CASE WHEN remaining_uses - 1 = 0 THEN 'used' ELSE status END,
+       updated_at = datetime('now') WHERE id = ?`
+    ).bind(purchase_id),
+  ])
 
   return c.json({
-    station,
-    stats: {
-      totalUsed: stats?.total_used || 0,
-      totalAmount: stats?.total_amount || 0,
-      todayUsed: stats?.today_used || 0,
-      monthAmount: stats?.month_amount || 0,
-      pendingSettlement: pendingSettlement?.amount || 0,
-    }
-  });
-});
+    message: '쿠폰이 사용되었습니다.',
+    remaining_uses: purchase.remaining_uses - 1,
+    coupon_title: purchase.title,
+  })
+})
 
-// GET /api/owner/stations/:stationId/coupons - 주유소 쿠폰 목록
-stations.get('/owner/stations/:stationId/coupons', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const stationId = parseInt(c.req.param('stationId'));
-
-  const station = await c.env.DB.prepare('SELECT id FROM gas_stations WHERE id = ? AND owner_id = ?')
-    .bind(stationId, user.userId).first();
-  if (!station) return c.json({ error: '권한이 없습니다.' }, 403);
-
-  const { results } = await c.env.DB.prepare(
-    'SELECT * FROM coupons WHERE station_id = ? ORDER BY created_at DESC'
-  ).bind(stationId).all();
-
-  return c.json({ coupons: results });
-});
-
-// POST /api/owner/stations/:stationId/coupons - 쿠폰 생성
-stations.post('/owner/stations/:stationId/coupons', requireAuth, requireRole('station_owner'), async (c) => {
-  try {
-    const user = c.get('user') as any;
-    const stationId = parseInt(c.req.param('stationId'));
-
-    const station = await c.env.DB.prepare('SELECT id FROM gas_stations WHERE id = ? AND owner_id = ?')
-      .bind(stationId, user.userId).first();
-    if (!station) return c.json({ error: '권한이 없습니다.' }, 403);
-
-    const { title, description, wash_count, original_price, discount_price, valid_days } = await c.req.json();
-
-    if (!title || !wash_count || !original_price || !discount_price) {
-      return c.json({ error: '필수 항목을 입력해주세요.' }, 400);
-    }
-    if (wash_count < 1 || wash_count > 10) {
-      return c.json({ error: '세차 횟수는 1~10회 사이여야 합니다.' }, 400);
-    }
-    if (discount_price >= original_price) {
-      return c.json({ error: '판매가는 원가보다 낮아야 합니다.' }, 400);
-    }
-
-    const result = await c.env.DB.prepare(`
-      INSERT INTO coupons (station_id, title, description, wash_count, original_price, discount_price, valid_days)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(stationId, title, description || null, wash_count, original_price, discount_price, valid_days || null).run();
-
-    return c.json({ success: true, couponId: result.meta.last_row_id }, 201);
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
-  }
-});
-
-// PATCH /api/owner/coupons/:couponId/toggle - 쿠폰 활성화/비활성화
-stations.patch('/owner/coupons/:couponId/toggle', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const couponId = parseInt(c.req.param('couponId'));
-  const { isActive } = await c.req.json();
-
-  const coupon = await c.env.DB.prepare(`
-    SELECT c.* FROM coupons c
-    JOIN gas_stations gs ON c.station_id = gs.id
-    WHERE c.id = ? AND gs.owner_id = ?
-  `).bind(couponId, user.userId).first();
-
-  if (!coupon) return c.json({ error: '쿠폰을 찾을 수 없습니다.' }, 404);
-
-  await c.env.DB.prepare('UPDATE coupons SET is_active = ? WHERE id = ?')
-    .bind(isActive ? 1 : 0, couponId).run();
-
-  return c.json({ success: true });
-});
-
-// GET /api/owner/stations/:stationId/qr - QR 코드 조회
-stations.get('/owner/stations/:stationId/qr', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const stationId = parseInt(c.req.param('stationId'));
+// 사용 내역 (사장님)
+stations.get('/my-stations/:id/usages', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('id')
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = 20
+  const offset = (page - 1) * limit
 
   const station = await c.env.DB.prepare(
-    'SELECT * FROM gas_stations WHERE id = ? AND owner_id = ?'
-  ).bind(stationId, user.userId).first<any>();
-  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404);
+    `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first()
+  if (!station) return c.json({ error: '권한이 없습니다.' }, 403)
 
-  return c.json({ qrCode: station.qr_code, stationId });
-});
+  const usages = await c.env.DB.prepare(
+    `SELECT u.id, u.unit_price, u.used_at, u.settled,
+            c.title as coupon_title,
+            usr.name as user_name
+     FROM coupon_usages u
+     JOIN coupons c ON u.coupon_id = c.id
+     JOIN users usr ON u.user_id = usr.id
+     WHERE u.station_id = ?
+     ORDER BY u.used_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(stationId, limit, offset).all()
 
-// GET /api/owner/stations/:stationId/usage - 사용 내역
-stations.get('/owner/stations/:stationId/usage', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const stationId = parseInt(c.req.param('stationId'));
-  const startDate = c.req.query('startDate') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-  const endDate = c.req.query('endDate') || new Date().toISOString().split('T')[0];
+  const total = await c.env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM coupon_usages WHERE station_id = ?`
+  ).bind(stationId).first<any>()
 
-  const station = await c.env.DB.prepare('SELECT id FROM gas_stations WHERE id = ? AND owner_id = ?')
-    .bind(stationId, user.userId).first();
-  if (!station) return c.json({ error: '권한이 없습니다.' }, 403);
+  return c.json({ usages: usages.results, total: total?.cnt || 0, page, limit })
+})
 
-  const { results } = await c.env.DB.prepare(`
-    SELECT cu.*, u.name as customer_name, c.title as coupon_title, c.discount_price,
-      v.name as verified_by_name
-    FROM coupon_usages cu
-    JOIN users u ON cu.customer_id = u.id
-    JOIN coupons c ON cu.coupon_id = c.id
-    LEFT JOIN users v ON cu.verified_by = v.id
-    WHERE cu.station_id = ? AND DATE(cu.used_at) BETWEEN ? AND ?
-    ORDER BY cu.used_at DESC
-  `).bind(stationId, startDate, endDate).all();
+// 정산 현황 (사장님)
+stations.get('/my-stations/:id/settlements', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('id')
 
-  return c.json({ usages: results });
-});
+  const station = await c.env.DB.prepare(
+    `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first()
+  if (!station) return c.json({ error: '권한이 없습니다.' }, 403)
 
-// GET /api/owner/stations/:stationId/settlement - 정산 현황
-stations.get('/owner/stations/:stationId/settlement', requireAuth, requireRole('station_owner'), async (c) => {
-  const user = c.get('user') as any;
-  const stationId = parseInt(c.req.param('stationId'));
+  const settlements = await c.env.DB.prepare(
+    `SELECT id, settlement_date, gross_amount, platform_fee, net_amount, usage_count, status, processed_at
+     FROM settlements WHERE station_id = ? ORDER BY settlement_date DESC LIMIT 30`
+  ).bind(stationId).all()
 
-  const station = await c.env.DB.prepare('SELECT id FROM gas_stations WHERE id = ? AND owner_id = ?')
-    .bind(stationId, user.userId).first();
-  if (!station) return c.json({ error: '권한이 없습니다.' }, 403);
+  // 미정산 금액 (어제까지 사용된 쿠폰 중 미정산)
+  const pending = await c.env.DB.prepare(
+    `SELECT SUM(unit_price) as total FROM coupon_usages
+     WHERE station_id = ? AND settled = 0 AND used_at < date('now')`
+  ).bind(stationId).first<any>()
 
-  const { results } = await c.env.DB.prepare(`
-    SELECT * FROM settlements WHERE station_id = ? ORDER BY settlement_date DESC LIMIT 30
-  `).bind(stationId).all();
+  return c.json({ settlements: settlements.results, pending_amount: pending?.total || 0 })
+})
 
-  // 미정산 금액 계산
-  const pending = await c.env.DB.prepare(`
-    SELECT COUNT(*) as count, COALESCE(SUM(c.discount_price), 0) as amount
-    FROM coupon_usages cu
-    JOIN coupons c ON cu.coupon_id = c.id
-    WHERE cu.station_id = ? AND NOT EXISTS (
-      SELECT 1 FROM settlements s 
-      WHERE s.station_id = cu.station_id AND s.settlement_date = DATE(cu.used_at)
-        AND s.status = 'completed'
-    )
-  `).bind(stationId).first<any>();
+// ============ 파일 업로드 (R2) ============
+stations.post('/upload', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const formData = await c.req.formData()
+  const file = formData.get('file') as File
 
-  const feeRate = await c.env.DB.prepare(
-    "SELECT setting_value FROM platform_settings WHERE setting_key = 'platform_fee_rate'"
-  ).first<any>();
-  const rate = parseFloat(feeRate?.setting_value || '0.15');
+  if (!file) return c.json({ error: '파일이 필요합니다.' }, 400)
+  if (file.size > 10 * 1024 * 1024) return c.json({ error: '파일 크기는 10MB 이하여야 합니다.' }, 400)
 
-  return c.json({
-    settlements: results,
-    pending: {
-      count: pending?.count || 0,
-      amount: pending?.amount || 0,
-      fee: Math.floor((pending?.amount || 0) * rate),
-      netAmount: Math.floor((pending?.amount || 0) * (1 - rate)),
+  const allowedTypes = ['image/jpeg', 'image/png', 'image/webp', 'application/pdf']
+  if (!allowedTypes.includes(file.type)) {
+    return c.json({ error: 'JPG, PNG, WebP, PDF 파일만 업로드 가능합니다.' }, 400)
+  }
+
+  const ext = file.name.split('.').pop() || 'jpg'
+  const key = `docs/${user.userId}/${generateId()}.${ext}`
+  
+  await c.env.R2.put(key, await file.arrayBuffer(), {
+    httpMetadata: { contentType: file.type },
+  })
+
+  return c.json({ key, url: `/api/stations/files/${key}` })
+})
+
+// 파일 다운로드 (어드민, 사장님)
+stations.get('/files/*', authMiddleware, async (c) => {
+  const user = c.get('user')
+  const key = c.req.path.replace('/api/stations/files/', '')
+
+  // 어드민이거나 자신의 파일인 경우만 허용
+  if (user.userType !== 'admin') {
+    const ownerId = key.split('/')[1]
+    if (ownerId !== String(user.userId)) {
+      return c.json({ error: '접근 권한이 없습니다.' }, 403)
     }
-  });
-});
+  }
 
-export default stations;
+  const obj = await c.env.R2.get(key)
+  if (!obj) return c.json({ error: '파일을 찾을 수 없습니다.' }, 404)
+
+  return new Response(obj.body, {
+    headers: {
+      'Content-Type': obj.httpMetadata?.contentType || 'application/octet-stream',
+      'Cache-Control': 'private, max-age=3600',
+    },
+  })
+})
+
+export default stations

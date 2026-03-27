@@ -1,331 +1,443 @@
-import { Hono } from 'hono';
-import { requireAuth, requireRole } from '../middleware/auth';
-import type { Env } from '../types';
+// 쿠폰 관리 + 결제 API (Toss Payments)
+import { Hono } from 'hono'
+import { authMiddleware, requireRole } from '../middleware/auth'
+import { generateId } from '../utils/jwt'
+import type { Env, JWTPayload } from '../types'
 
-const coupons = new Hono<{ Bindings: Env }>();
+type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
 
-// =====================
-// 고객 쿠폰 API
-// =====================
+const coupons = new Hono<AppEnv>()
 
-// POST /api/coupons/buy - 쿠폰 구매 시작 (토스 결제 준비)
-coupons.post('/buy', requireAuth, requireRole('customer'), async (c) => {
-  try {
-    const user = c.get('user') as any;
-    const { couponId, quantity = 1 } = await c.req.json();
+// ============ 사장님: 쿠폰 관리 ============
 
-    const coupon = await c.env.DB.prepare(`
-      SELECT c.*, gs.station_name FROM coupons c
-      JOIN gas_stations gs ON c.station_id = gs.id
-      WHERE c.id = ? AND c.is_active = 1
-    `).bind(couponId).first<any>();
+// 쿠폰 생성
+coupons.post('/owner/stations/:stationId/coupons', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = parseInt(c.req.param('stationId'))
+  const { title, description, original_price, discount_price, wash_count, total_stock } = await c.req.json()
 
-    if (!coupon) return c.json({ error: '쿠폰을 찾을 수 없습니다.' }, 404);
-    if (quantity < 1 || quantity > 100) return c.json({ error: '수량은 1~100 사이여야 합니다.' }, 400);
+  // 주유소 소유권 확인
+  const station = await c.env.DB.prepare(
+    `SELECT id FROM stations WHERE id = ? AND owner_id = ? AND is_active = 1 AND is_closed = 0`
+  ).bind(stationId, user.userId).first()
+  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404)
 
-    const totalAmount = coupon.discount_price * quantity;
-    const orderId = `EVWASH-${Date.now()}-${Math.random().toString(36).substring(2, 7).toUpperCase()}`;
-    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString(); // 30분
-
-    await c.env.DB.prepare(`
-      INSERT INTO temporary_orders (order_id, customer_id, coupon_id, quantity, unit_price, total_amount, expires_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).bind(orderId, user.userId, couponId, quantity, coupon.discount_price, totalAmount, expiresAt).run();
-
-    const successUrl = `${c.env.TOSS_SUCCESS_URL || 'https://ev-wash.com/payment/success'}?orderId=${orderId}`;
-    const failUrl = `${c.env.TOSS_FAIL_URL || 'https://ev-wash.com/payment/fail'}?orderId=${orderId}`;
-
-    return c.json({
-      orderId,
-      amount: totalAmount,
-      orderName: `${coupon.station_name} - ${coupon.title} ${quantity}매`,
-      customerName: user.name,
-      clientKey: c.env.TOSS_CLIENT_KEY || 'test_ck_placeholder',
-      successUrl,
-      failUrl,
-    });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  // 유효성 검사
+  if (!title || !original_price || !discount_price || !wash_count) {
+    return c.json({ error: '필수 정보를 모두 입력해주세요.' }, 400)
   }
-});
-
-// GET /api/payment/success - 결제 성공 콜백
-coupons.get('/payment/success', async (c) => {
-  const paymentKey = c.req.query('paymentKey');
-  const orderId = c.req.query('orderId');
-  const amount = c.req.query('amount');
-
-  if (!paymentKey || !orderId || !amount) {
-    return c.redirect('/payment/fail?message=잘못된_요청');
+  if (wash_count < 1 || wash_count > 10) {
+    return c.json({ error: '이용 횟수는 1~10회만 설정 가능합니다.' }, 400)
+  }
+  if (discount_price >= original_price) {
+    return c.json({ error: '할인가는 정가보다 낮아야 합니다.' }, 400)
+  }
+  if (discount_price <= 0 || original_price <= 0) {
+    return c.json({ error: '가격은 0원 이상이어야 합니다.' }, 400)
   }
 
-  try {
-    const order = await c.env.DB.prepare(
-      'SELECT * FROM temporary_orders WHERE order_id = ? AND status = ?'
-    ).bind(orderId, 'pending').first<any>();
+  const result = await c.env.DB.prepare(
+    `INSERT INTO coupons (station_id, title, description, original_price, discount_price, wash_count, total_stock, remaining_stock)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+  ).bind(stationId, title, description || null, original_price, discount_price, wash_count,
+    total_stock || null, total_stock || null).run()
 
-    if (!order) return c.redirect('/payment/fail?message=주문을_찾을_수_없습니다');
-    if (parseInt(amount) !== order.total_amount) {
-      return c.redirect('/payment/fail?message=금액_불일치');
+  return c.json({ id: result.meta.last_row_id, message: '쿠폰이 등록되었습니다.' }, 201)
+})
+
+// 사장님 쿠폰 목록
+coupons.get('/owner/stations/:stationId/coupons', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('stationId')
+
+  const station = await c.env.DB.prepare(
+    `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first()
+  if (!station) return c.json({ error: '권한이 없습니다.' }, 403)
+
+  const couponList = await c.env.DB.prepare(
+    `SELECT c.*,
+            (SELECT COUNT(*) FROM coupon_purchases WHERE coupon_id = c.id AND status = 'active') as active_purchases,
+            (SELECT SUM(unit_price) FROM coupon_usages WHERE coupon_id = c.id) as total_revenue
+     FROM coupons c WHERE c.station_id = ? ORDER BY c.created_at DESC`
+  ).bind(stationId).all()
+
+  return c.json({ coupons: couponList.results })
+})
+
+// 쿠폰 수정
+coupons.patch('/owner/coupons/:id', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const couponId = c.req.param('id')
+  const { title, description, original_price, discount_price, wash_count, total_stock, is_active } = await c.req.json()
+
+  const coupon = await c.env.DB.prepare(
+    `SELECT c.id FROM coupons c JOIN stations s ON c.station_id = s.id
+     WHERE c.id = ? AND s.owner_id = ?`
+  ).bind(couponId, user.userId).first()
+  if (!coupon) return c.json({ error: '권한이 없습니다.' }, 403)
+
+  if (wash_count && (wash_count < 1 || wash_count > 10)) {
+    return c.json({ error: '이용 횟수는 1~10회만 설정 가능합니다.' }, 400)
+  }
+
+  await c.env.DB.prepare(
+    `UPDATE coupons SET
+       title = COALESCE(?, title),
+       description = COALESCE(?, description),
+       original_price = COALESCE(?, original_price),
+       discount_price = COALESCE(?, discount_price),
+       wash_count = COALESCE(?, wash_count),
+       total_stock = COALESCE(?, total_stock),
+       remaining_stock = CASE WHEN ? IS NOT NULL THEN ? ELSE remaining_stock END,
+       is_active = COALESCE(?, is_active),
+       updated_at = datetime('now')
+     WHERE id = ?`
+  ).bind(
+    title ?? null, description ?? null, original_price ?? null, discount_price ?? null,
+    wash_count ?? null, total_stock ?? null, total_stock ?? null, total_stock ?? null,
+    is_active ?? null, couponId
+  ).run()
+
+  return c.json({ message: '수정되었습니다.' })
+})
+
+// 쿠폰 삭제 (미판매 쿠폰만)
+coupons.delete('/owner/coupons/:id', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const couponId = c.req.param('id')
+
+  const coupon = await c.env.DB.prepare(
+    `SELECT c.id FROM coupons c JOIN stations s ON c.station_id = s.id
+     WHERE c.id = ? AND s.owner_id = ?`
+  ).bind(couponId, user.userId).first()
+  if (!coupon) return c.json({ error: '권한이 없습니다.' }, 403)
+
+  const hasPurchases = await c.env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM coupon_purchases WHERE coupon_id = ? AND status = 'active'`
+  ).bind(couponId).first<any>()
+  if (hasPurchases?.cnt > 0) {
+    return c.json({ error: '구매된 쿠폰이 있어 삭제할 수 없습니다. 비활성화만 가능합니다.' }, 400)
+  }
+
+  await c.env.DB.prepare('UPDATE coupons SET is_active = 0 WHERE id = ?').bind(couponId).run()
+  return c.json({ message: '쿠폰이 비활성화되었습니다.' })
+})
+
+// ============ 고객: 쿠폰 구매 ============
+
+// 내 쿠폰 목록 (주유소별 그룹)
+coupons.get('/my', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+
+  const purchases = await c.env.DB.prepare(
+    `SELECT p.id, p.quantity, p.unit_price, p.total_amount, p.remaining_uses, p.status, p.created_at,
+            c.title as coupon_title, c.wash_count, c.description,
+            s.id as station_id, s.station_name, s.address, s.qr_code
+     FROM coupon_purchases p
+     JOIN coupons c ON p.coupon_id = c.id
+     JOIN stations s ON p.station_id = s.id
+     WHERE p.user_id = ? AND p.status IN ('active', 'partial_refunded')
+     ORDER BY p.created_at DESC`
+  ).bind(user.userId).all<any>()
+
+  // 주유소별 그룹핑
+  const stationMap = new Map<number, any>()
+  for (const p of purchases.results) {
+    if (!stationMap.has(p.station_id)) {
+      stationMap.set(p.station_id, {
+        station_id: p.station_id,
+        station_name: p.station_name,
+        address: p.address,
+        qr_code: p.qr_code,
+        remaining_quantity: 0,
+        purchases: []
+      })
     }
+    const st = stationMap.get(p.station_id)!
+    st.remaining_quantity += p.remaining_uses
+    st.purchases.push(p)
+  }
 
-    // 토스 결제 승인 API 호출
-    const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_placeholder';
-    const authHeader = `Basic ${btoa(secretKey + ':')}`;
+  return c.json({ stations: Array.from(stationMap.values()) })
+})
 
+// 내 쿠폰 상세 (특정 주유소)
+coupons.get('/my/:stationId', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('stationId')
+
+  const purchases = await c.env.DB.prepare(
+    `SELECT p.id, p.quantity, p.unit_price, p.total_amount, p.remaining_uses,
+            p.status, p.created_at, p.refunded_amount, p.refunded_uses,
+            c.title as coupon_title, c.wash_count, c.discount_price
+     FROM coupon_purchases p
+     JOIN coupons c ON p.coupon_id = c.id
+     WHERE p.user_id = ? AND p.station_id = ? AND p.status NOT IN ('refunded')
+     ORDER BY p.created_at ASC`
+  ).bind(user.userId, stationId).all()
+
+  const station = await c.env.DB.prepare(
+    `SELECT id, station_name, address, phone, qr_code, is_active, is_closed FROM stations WHERE id = ?`
+  ).bind(stationId).first()
+
+  return c.json({ station, purchases: purchases.results })
+})
+
+// 구매 이력
+coupons.get('/my/history/all', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const page = parseInt(c.req.query('page') || '1')
+  const limit = 20
+  const offset = (page - 1) * limit
+
+  const history = await c.env.DB.prepare(
+    `SELECT p.id, p.quantity, p.unit_price, p.total_amount, p.status, p.created_at,
+            p.refunded_amount, p.order_id,
+            c.title as coupon_title,
+            s.station_name
+     FROM coupon_purchases p
+     JOIN coupons c ON p.coupon_id = c.id
+     JOIN stations s ON p.station_id = s.id
+     WHERE p.user_id = ?
+     ORDER BY p.created_at DESC
+     LIMIT ? OFFSET ?`
+  ).bind(user.userId, limit, offset).all()
+
+  const total = await c.env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM coupon_purchases WHERE user_id = ?`
+  ).bind(user.userId).first<any>()
+
+  return c.json({ history: history.results, total: total?.cnt || 0, page, limit })
+})
+
+// ============ 결제 (Toss Payments) ============
+
+// 결제 준비 (임시 주문 생성)
+coupons.post('/buy', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const { couponId, quantity } = await c.req.json()
+
+  if (!couponId || !quantity || quantity < 1) {
+    return c.json({ error: '쿠폰 ID와 수량을 입력해주세요.' }, 400)
+  }
+
+  // 쿠폰 조회
+  const coupon = await c.env.DB.prepare(
+    `SELECT c.*, s.station_name, s.is_active, s.is_closed
+     FROM coupons c JOIN stations s ON c.station_id = s.id
+     WHERE c.id = ? AND c.is_active = 1 AND s.is_active = 1 AND s.is_closed = 0`
+  ).bind(couponId).first<any>()
+  if (!coupon) return c.json({ error: '구매할 수 없는 쿠폰입니다.' }, 400)
+
+  if (coupon.total_stock !== null && coupon.remaining_stock < quantity) {
+    return c.json({ error: '재고가 부족합니다.' }, 400)
+  }
+
+  const totalAmount = coupon.discount_price * quantity
+  const orderId = `EW-${generateId().replace(/-/g, '').slice(0, 20)}`
+
+  // 임시 주문 생성
+  await c.env.DB.prepare(
+    `INSERT INTO temp_orders (order_id, user_id, coupon_id, quantity, unit_price, total_amount)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(orderId, user.userId, couponId, quantity, coupon.discount_price, totalAmount).run()
+
+  // 재고 임시 차감
+  if (coupon.total_stock !== null) {
+    await c.env.DB.prepare(
+      `UPDATE coupons SET remaining_stock = remaining_stock - ? WHERE id = ?`
+    ).bind(quantity, couponId).run()
+  }
+
+  const appUrl = c.env.APP_URL || 'http://localhost:3000'
+  const clientKey = c.env.TOSS_CLIENT_KEY || 'test_ck_placeholder'
+
+  return c.json({
+    orderId,
+    orderName: `${coupon.station_name} ${coupon.title} x${quantity}`,
+    customerName: user.name,
+    amount: totalAmount,
+    clientKey,
+    successUrl: `${appUrl}/payment/success?orderId=${orderId}`,
+    failUrl: `${appUrl}/payment/fail?orderId=${orderId}`,
+  })
+})
+
+// 결제 성공 확인 (Toss 리다이렉트)
+coupons.get('/payment/success', async (c) => {
+  const orderId = c.req.query('orderId')
+  const paymentKey = c.req.query('paymentKey')
+  const amount = c.req.query('amount')
+
+  if (!orderId || !paymentKey || !amount) {
+    return c.redirect('/payment/fail?reason=missing_params')
+  }
+
+  // Toss 결제 승인 API 호출
+  const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_placeholder'
+  const authStr = btoa(`${secretKey}:`)
+
+  try {
     const tossRes = await fetch('https://api.tosspayments.com/v1/payments/confirm', {
       method: 'POST',
       headers: {
-        'Authorization': authHeader,
+        Authorization: `Basic ${authStr}`,
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ paymentKey, orderId, amount: parseInt(amount) }),
-    });
+      body: JSON.stringify({ orderId, paymentKey, amount: parseInt(amount) }),
+    })
 
-    const tossData = await tossRes.json() as any;
+    const tossData = await tossRes.json<any>()
     if (!tossRes.ok) {
-      await c.env.DB.prepare('UPDATE temporary_orders SET status = ? WHERE order_id = ?')
-        .bind('failed', orderId).run();
-      return c.redirect(`/payment/fail?message=${encodeURIComponent(tossData.message || '결제 실패')}`);
+      console.error('[Toss] 결제 승인 실패:', tossData)
+      return c.redirect(`/payment/fail?orderId=${orderId}&reason=${tossData.code || 'TOSS_ERROR'}`)
     }
 
-    // 쿠폰 구매 기록 생성
-    const coupon = await c.env.DB.prepare('SELECT * FROM coupons WHERE id = ?')
-      .bind(order.coupon_id).first<any>();
-
-    let expiresAt = null;
-    if (coupon?.valid_days) {
-      const expDate = new Date();
-      expDate.setDate(expDate.getDate() + coupon.valid_days);
-      expiresAt = expDate.toISOString();
+    // 임시 주문 조회
+    const order = await c.env.DB.prepare(
+      `SELECT * FROM temp_orders WHERE order_id = ? AND status = 'pending'`
+    ).bind(orderId).first<any>()
+    if (!order) {
+      return c.redirect('/payment/fail?reason=order_not_found')
     }
 
-    await c.env.DB.prepare(`
-      INSERT INTO coupon_purchases 
-      (customer_id, coupon_id, station_id, quantity, used_quantity, unit_price, total_amount, payment_method, payment_status, payment_key, order_id, expires_at)
-      VALUES (?, ?, ?, ?, 0, ?, ?, 'toss', 'completed', ?, ?, ?)
-    `).bind(
-      order.customer_id, order.coupon_id, coupon.station_id,
-      order.quantity, order.unit_price, order.total_amount,
-      paymentKey, orderId, expiresAt
-    ).run();
+    const coupon = await c.env.DB.prepare(
+      `SELECT wash_count FROM coupons WHERE id = ?`
+    ).bind(order.coupon_id).first<any>()
+    const remainingUses = (coupon?.wash_count || 1) * order.quantity
 
-    // 임시 주문 완료 처리
-    await c.env.DB.prepare(
-      'UPDATE temporary_orders SET status = ?, payment_key = ? WHERE order_id = ?'
-    ).bind('completed', paymentKey, orderId).run();
+    // 구매 내역 생성
+    await c.env.DB.batch([
+      c.env.DB.prepare(
+        `INSERT INTO coupon_purchases
+         (user_id, coupon_id, station_id, order_id, payment_key, quantity, unit_price, total_amount, remaining_uses)
+         SELECT ?, o.coupon_id, c.station_id, ?, ?, o.quantity, o.unit_price, o.total_amount, ?
+         FROM temp_orders o JOIN coupons c ON o.coupon_id = c.id WHERE o.order_id = ?`
+      ).bind(order.user_id, orderId, paymentKey, remainingUses, orderId),
+      c.env.DB.prepare(
+        `UPDATE temp_orders SET status = 'paid', updated_at = datetime('now') WHERE order_id = ?`
+      ).bind(orderId),
+    ])
 
-    return c.redirect(`/payment/success?orderId=${orderId}&amount=${amount}`);
-  } catch (e: any) {
-    return c.redirect(`/payment/fail?message=${encodeURIComponent(e.message)}`);
+    return c.redirect(`/payment/success?orderId=${orderId}&done=1`)
+  } catch (err) {
+    console.error('[Payment Success]', err)
+    return c.redirect(`/payment/fail?orderId=${orderId}&reason=server_error`)
   }
-});
+})
 
-// GET /api/payment/fail - 결제 실패 콜백
+// 결제 취소/실패
 coupons.get('/payment/fail', async (c) => {
-  const orderId = c.req.query('orderId');
+  const orderId = c.req.query('orderId')
   if (orderId) {
-    await c.env.DB.prepare('UPDATE temporary_orders SET status = ? WHERE order_id = ?')
-      .bind('failed', orderId).run();
+    const order = await c.env.DB.prepare(
+      `SELECT * FROM temp_orders WHERE order_id = ? AND status = 'pending'`
+    ).bind(orderId).first<any>()
+    if (order) {
+      await c.env.DB.batch([
+        c.env.DB.prepare(
+          `UPDATE temp_orders SET status = 'failed', updated_at = datetime('now') WHERE order_id = ?`
+        ).bind(orderId),
+        // 재고 복원
+        c.env.DB.prepare(
+          `UPDATE coupons SET remaining_stock = remaining_stock + ?
+           WHERE id = ? AND total_stock IS NOT NULL`
+        ).bind(order.quantity, order.coupon_id),
+      ])
+    }
   }
-  return c.redirect(`/payment/fail?message=${c.req.query('message') || '결제가 취소되었습니다'}`);
-});
+  return c.redirect(`/payment/fail?reason=cancelled`)
+})
 
-// GET /api/coupons/my - 내 쿠폰 목록 (주유소별)
-coupons.get('/my', requireAuth, requireRole('customer'), async (c) => {
-  const user = c.get('user') as any;
+// ============ 환불 (미사용 쿠폰, 언제든지 가능) ============
+coupons.post('/refund/:purchaseId', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const purchaseId = c.req.param('purchaseId')
+  const { quantity } = await c.req.json() // 환불할 횟수 (1이상, remaining_uses 이하)
 
-  const { results } = await c.env.DB.prepare(`
-    SELECT 
-      gs.id as station_id, gs.station_name, gs.address, gs.phone,
-      SUM(cp.quantity) as total_quantity,
-      SUM(cp.used_quantity) as used_quantity,
-      SUM(cp.quantity - cp.used_quantity) as remaining_quantity,
-      SUM(cp.total_amount) as total_amount
-    FROM coupon_purchases cp
-    JOIN gas_stations gs ON cp.station_id = gs.id
-    WHERE cp.customer_id = ? AND cp.payment_status = 'completed'
-      AND (cp.quantity - cp.used_quantity) > 0
-    GROUP BY gs.id, gs.station_name, gs.address, gs.phone
-    ORDER BY gs.station_name
-  `).bind(user.userId).all();
+  const purchase = await c.env.DB.prepare(
+    `SELECT p.*, c.wash_count, c.discount_price
+     FROM coupon_purchases p JOIN coupons c ON p.coupon_id = c.id
+     WHERE p.id = ? AND p.user_id = ? AND p.status IN ('active', 'partial_refunded')`
+  ).bind(purchaseId, user.userId).first<any>()
 
-  return c.json({ stations: results });
-});
+  if (!purchase) return c.json({ error: '환불할 쿠폰을 찾을 수 없습니다.' }, 404)
 
-// GET /api/coupons/my/:stationId - 특정 주유소 내 쿠폰 상세
-coupons.get('/my/:stationId', requireAuth, requireRole('customer'), async (c) => {
-  const user = c.get('user') as any;
-  const stationId = parseInt(c.req.param('stationId'));
-
-  const { results } = await c.env.DB.prepare(`
-    SELECT cp.*, c.title, c.description, c.wash_count, c.discount_price as unit_price_current
-    FROM coupon_purchases cp
-    JOIN coupons c ON cp.coupon_id = c.id
-    WHERE cp.customer_id = ? AND cp.station_id = ? AND cp.payment_status = 'completed'
-      AND (cp.quantity - cp.used_quantity) > 0
-    ORDER BY cp.purchased_at ASC
-  `).bind(user.userId, stationId).all();
-
-  return c.json({ purchases: results });
-});
-
-// POST /api/coupons/use - 쿠폰 사용 (QR 스캔 후)
-coupons.post('/use', requireAuth, requireRole('customer'), async (c) => {
-  try {
-    const user = c.get('user') as any;
-    const { couponId, stationId, qrData } = await c.req.json();
-
-    // QR 데이터 검증
-    if (!qrData || !qrData.startsWith('evwash:')) {
-      return c.json({ error: '유효하지 않은 QR 코드입니다.' }, 400);
-    }
-
-    const [, qrStationId] = qrData.split(':');
-    if (parseInt(qrStationId) !== parseInt(stationId)) {
-      return c.json({ error: '다른 주유소의 QR 코드입니다.' }, 400);
-    }
-
-    // QR 코드로 주유소 확인
-    const station = await c.env.DB.prepare(
-      'SELECT * FROM gas_stations WHERE id = ? AND qr_code = ? AND is_active = 1'
-    ).bind(stationId, qrData).first<any>();
-
-    if (!station) return c.json({ error: '유효하지 않은 QR 코드입니다.' }, 400);
-
-    // FIFO: 가장 오래된 구매 기록부터 사용
-    const purchase = await c.env.DB.prepare(`
-      SELECT cp.* FROM coupon_purchases cp
-      WHERE cp.customer_id = ? AND cp.coupon_id = ? AND cp.station_id = ?
-        AND cp.payment_status = 'completed'
-        AND (cp.quantity - cp.used_quantity) > 0
-        AND (cp.expires_at IS NULL OR cp.expires_at > datetime('now'))
-      ORDER BY cp.purchased_at ASC
-      LIMIT 1
-    `).bind(user.userId, couponId, stationId).first<any>();
-
-    if (!purchase) return c.json({ error: '사용 가능한 쿠폰이 없습니다.' }, 400);
-
-    // 사용 처리
-    await c.env.DB.prepare(
-      'UPDATE coupon_purchases SET used_quantity = used_quantity + 1 WHERE id = ?'
-    ).bind(purchase.id).run();
-
-    await c.env.DB.prepare(`
-      INSERT INTO coupon_usages (purchase_id, coupon_id, station_id, customer_id)
-      VALUES (?, ?, ?, ?)
-    `).bind(purchase.id, couponId, stationId, user.userId).run();
-
-    return c.json({ success: true, message: '쿠폰이 사용되었습니다.' });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  const refundQty = quantity || purchase.remaining_uses // 미지정시 전체 환불
+  if (refundQty > purchase.remaining_uses) {
+    return c.json({ error: `남은 사용 횟수(${purchase.remaining_uses}회) 초과입니다.` }, 400)
   }
-});
 
-// POST /api/coupons/cancel - 쿠폰 취소/환불
-coupons.post('/cancel', requireAuth, requireRole('customer'), async (c) => {
-  try {
-    const user = c.get('user') as any;
-    const { purchaseId, cancelQuantity, cancelReason } = await c.req.json();
+  // 환불 금액 계산 (사용 횟수 기준)
+  const pricePerUse = Math.floor(purchase.unit_price / purchase.wash_count)
+  const refundAmount = pricePerUse * refundQty
 
-    const purchase = await c.env.DB.prepare(
-      'SELECT * FROM coupon_purchases WHERE id = ? AND customer_id = ? AND payment_status = ?'
-    ).bind(purchaseId, user.userId, 'completed').first<any>();
-
-    if (!purchase) return c.json({ error: '구매 내역을 찾을 수 없습니다.' }, 404);
-
-    const availableForCancel = purchase.quantity - purchase.used_quantity;
-    if (cancelQuantity > availableForCancel) {
-      return c.json({ error: `최대 ${availableForCancel}매까지 취소 가능합니다.` }, 400);
-    }
-
-    // 수수료 계산
-    const purchasedAt = new Date(purchase.purchased_at).getTime();
-    const hoursSincePurchase = (Date.now() - purchasedAt) / (1000 * 60 * 60);
-
-    const cancelFeeRateSetting = await c.env.DB.prepare(
-      "SELECT setting_value FROM platform_settings WHERE setting_key = 'cancel_fee_rate'"
-    ).first<any>();
-    const cancelFeeRate = parseFloat(cancelFeeRateSetting?.setting_value || '0.033');
-
-    const refundAmountPerUnit = purchase.unit_price;
-    let cancelFee = 0;
-    if (hoursSincePurchase > 24) {
-      cancelFee = Math.floor(refundAmountPerUnit * cancelQuantity * cancelFeeRate);
-    }
-    const refundAmount = refundAmountPerUnit * cancelQuantity - cancelFee;
-
-    // 토스 부분 취소 API
-    if (purchase.payment_key) {
-      const secretKey = c.env.TOSS_SECRET_KEY || 'test_sk_placeholder';
-      const authHeader = `Basic ${btoa(secretKey + ':')}`;
-
-      const tossRes = await fetch(`https://api.tosspayments.com/v1/payments/${purchase.payment_key}/cancel`, {
+  // Toss 환불 API 호출
+  if (purchase.payment_key && !purchase.payment_key.startsWith('test_')) {
+    const secretKey = c.env.TOSS_SECRET_KEY || ''
+    const authStr = btoa(`${secretKey}:`)
+    const tossRes = await fetch(
+      `https://api.tosspayments.com/v1/payments/${purchase.payment_key}/cancels`,
+      {
         method: 'POST',
-        headers: { 'Authorization': authHeader, 'Content-Type': 'application/json' },
+        headers: {
+          Authorization: `Basic ${authStr}`,
+          'Content-Type': 'application/json',
+        },
         body: JSON.stringify({
-          cancelReason: cancelReason || '고객 요청',
+          cancelReason: '고객 환불 요청',
           cancelAmount: refundAmount,
-          taxFreeAmount: 0,
         }),
-      });
-
-      if (!tossRes.ok) {
-        const errData = await tossRes.json() as any;
-        return c.json({ error: errData.message || '환불 처리 중 오류가 발생했습니다.' }, 500);
       }
+    )
+    if (!tossRes.ok) {
+      const err = await tossRes.json<any>()
+      return c.json({ error: `환불 처리 실패: ${err.message || '알 수 없는 오류'}` }, 400)
     }
-
-    // 구매 수량 업데이트
-    const newQuantity = purchase.quantity - cancelQuantity;
-    const newStatus = newQuantity === 0 ? 'refunded' : 'partial_refunded';
-    await c.env.DB.prepare(
-      'UPDATE coupon_purchases SET quantity = ?, total_amount = total_amount - ?, payment_status = ? WHERE id = ?'
-    ).bind(newQuantity, refundAmountPerUnit * cancelQuantity, newStatus, purchaseId).run();
-
-    // 취소 내역 저장
-    await c.env.DB.prepare(`
-      INSERT INTO cancellations (purchase_id, customer_id, cancel_quantity, refund_amount, cancel_fee, cancel_reason, status, payment_key, completed_at)
-      VALUES (?, ?, ?, ?, ?, ?, 'completed', ?, datetime('now'))
-    `).bind(purchaseId, user.userId, cancelQuantity, refundAmount, cancelFee, cancelReason || '고객 요청', purchase.payment_key).run();
-
-    return c.json({ success: true, refundAmount, cancelFee });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
   }
-});
 
-// GET /api/coupons/purchases - 구매 내역
-coupons.get('/purchases', requireAuth, requireRole('customer'), async (c) => {
-  const user = c.get('user') as any;
+  const newRemaining = purchase.remaining_uses - refundQty
+  const newStatus = newRemaining === 0 ? 'refunded' : 'partial_refunded'
 
-  const { results } = await c.env.DB.prepare(`
-    SELECT cp.*, c.title as coupon_title, c.wash_count, gs.station_name
-    FROM coupon_purchases cp
-    JOIN coupons c ON cp.coupon_id = c.id
-    JOIN gas_stations gs ON cp.station_id = gs.id
-    WHERE cp.customer_id = ?
-    ORDER BY cp.purchased_at DESC
-  `).bind(user.userId).all();
+  await c.env.DB.prepare(
+    `UPDATE coupon_purchases SET
+       remaining_uses = ?, status = ?,
+       refunded_amount = refunded_amount + ?,
+       refunded_uses = refunded_uses + ?,
+       refunded_at = datetime('now'),
+       updated_at = datetime('now')
+     WHERE id = ?`
+  ).bind(newRemaining, newStatus, refundAmount, refundQty, purchaseId).run()
 
-  return c.json({ purchases: results });
-});
+  return c.json({ message: `${refundAmount.toLocaleString()}원이 환불됩니다.`, refund_amount: refundAmount })
+})
 
-// GET /api/coupons/cancellations - 취소 내역
-coupons.get('/cancellations', requireAuth, requireRole('customer'), async (c) => {
-  const user = c.get('user') as any;
+// ============ 어드민 ============
 
-  const { results } = await c.env.DB.prepare(`
-    SELECT ca.*, cp.order_id, c.title as coupon_title, gs.station_name
-    FROM cancellations ca
-    JOIN coupon_purchases cp ON ca.purchase_id = cp.id
-    JOIN coupons c ON cp.coupon_id = c.id
-    JOIN gas_stations gs ON cp.station_id = gs.id
-    WHERE ca.customer_id = ?
-    ORDER BY ca.requested_at DESC
-  `).bind(user.userId).all();
+// 전체 쿠폰 목록
+coupons.get('/admin/list', authMiddleware, requireRole('admin'), async (c) => {
+  const page = parseInt(c.req.query('page') || '1')
+  const stationId = c.req.query('station_id')
+  const limit = 20
+  const offset = (page - 1) * limit
 
-  return c.json({ cancellations: results });
-});
+  const params: any[] = []
+  let where = 'WHERE 1=1'
+  if (stationId) { where += ' AND c.station_id = ?'; params.push(stationId) }
 
-export default coupons;
+  const couponList = await c.env.DB.prepare(
+    `SELECT c.*, s.station_name,
+            (SELECT COUNT(*) FROM coupon_purchases WHERE coupon_id = c.id) as purchase_count
+     FROM coupons c JOIN stations s ON c.station_id = s.id
+     ${where} ORDER BY c.created_at DESC LIMIT ? OFFSET ?`
+  ).bind(...params, limit, offset).all()
+
+  const total = await c.env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM coupons c ${where}`
+  ).bind(...params).first<any>()
+
+  return c.json({ coupons: couponList.results, total: total?.cnt || 0 })
+})
+
+export default coupons

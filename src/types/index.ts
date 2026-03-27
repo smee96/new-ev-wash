@@ -1,92 +1,92 @@
-export type UserType = 'customer' | 'station_owner' | 'admin';
-export type CarWashType = 'self' | 'automatic' | 'both';
-export type ApplicationStatus = 'pending' | 'approved' | 'rejected';
-export type PaymentStatus = 'pending' | 'completed' | 'failed' | 'refunded' | 'partial_refunded';
-export type SettlementStatus = 'pending' | 'processing' | 'completed';
+// EV-Wash 타입 정의
 
-export interface Env {
-  DB: D1Database;
-  R2: R2Bucket;
-  JWT_SECRET: string;
-  TOSS_CLIENT_KEY: string;
-  TOSS_SECRET_KEY: string;
-  TOSS_SUCCESS_URL: string;
-  TOSS_FAIL_URL: string;
-  KAKAO_API_KEY: string;
-  KAKAO_REDIRECT_URI: string;
-  NAVER_CLIENT_ID: string;
-  NAVER_CLIENT_SECRET: string;
-  NAVER_REDIRECT_URI: string;
-  RESEND_API_KEY: string;
-  CS_EMAIL: string;
-  PLATFORM_URL: string;
+export type Env = {
+  DB: D1Database
+  R2: R2Bucket
+  JWT_SECRET: string
+  TOSS_CLIENT_KEY: string
+  TOSS_SECRET_KEY: string
+  KAKAO_CLIENT_ID: string
+  KAKAO_CLIENT_SECRET: string
+  NAVER_CLIENT_ID: string
+  NAVER_CLIENT_SECRET: string
+  RESEND_API_KEY: string
+  APP_URL: string
+  CS_EMAIL: string
+  TEST_MODE: string
+}
+
+export type UserType = 'customer' | 'station_owner' | 'admin'
+export type SocialProvider = 'kakao' | 'naver'
+
+export interface User {
+  id: number
+  email: string | null
+  name: string
+  phone: string | null
+  user_type: UserType
+  social_provider: SocialProvider | null
+  social_id: string | null
+  is_active: number
+  created_at: string
 }
 
 export interface JWTPayload {
-  userId: number;
-  email: string;
-  userType: UserType;
-  name: string;
-  iat: number;
-  exp: number;
+  userId: number
+  email: string | null
+  name: string
+  userType: UserType
+  iat?: number
+  exp?: number
 }
 
-export interface User {
-  id: number;
-  email: string;
-  name: string;
-  phone: string;
-  user_type: UserType;
-  social_provider?: string;
-  social_id?: string;
-  is_active: number;
-  created_at: string;
-}
-
-export interface GasStation {
-  id: number;
-  owner_id: number;
-  station_name: string;
-  address: string;
-  latitude?: number;
-  longitude?: number;
-  phone: string;
-  car_wash_type: CarWashType;
-  qr_code?: string;
-  is_active: number;
-  bank_name?: string;
-  bank_account?: string;
-  bank_holder?: string;
-  created_at: string;
+export interface Station {
+  id: number
+  owner_id: number
+  station_name: string
+  address: string
+  address_detail: string | null
+  latitude: number | null
+  longitude: number | null
+  phone: string | null
+  car_wash_type: 'automatic' | 'self' | 'both'
+  business_reg_number: string
+  bank_name: string
+  account_number: string
+  account_holder: string
+  qr_code: string
+  is_active: number
+  is_closed: number
+  created_at: string
 }
 
 export interface Coupon {
-  id: number;
-  station_id: number;
-  title: string;
-  description?: string;
-  wash_count: number;
-  original_price: number;
-  discount_price: number;
-  valid_days?: number;
-  remaining_quantity: number;
-  is_active: number;
-  created_at: string;
+  id: number
+  station_id: number
+  title: string
+  description: string | null
+  original_price: number
+  discount_price: number
+  wash_count: number
+  total_stock: number | null
+  remaining_stock: number | null
+  is_active: number
+  created_at: string
 }
 
 export interface CouponPurchase {
-  id: number;
-  customer_id: number;
-  coupon_id: number;
-  station_id: number;
-  quantity: number;
-  used_quantity: number;
-  unit_price: number;
-  total_amount: number;
-  payment_method: string;
-  payment_status: PaymentStatus;
-  payment_key?: string;
-  order_id?: string;
-  expires_at?: string;
-  purchased_at: string;
+  id: number
+  user_id: number
+  coupon_id: number
+  station_id: number
+  order_id: string
+  payment_key: string | null
+  quantity: number
+  unit_price: number
+  total_amount: number
+  remaining_uses: number
+  status: 'active' | 'used' | 'refunded' | 'partial_refunded'
+  refunded_amount: number
+  refunded_uses: number
+  created_at: string
 }

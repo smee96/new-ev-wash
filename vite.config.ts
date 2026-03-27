@@ -7,10 +7,11 @@ export default defineConfig({
   plugins: [
     build({
       outputDir: 'dist',
+      entry: 'src/index.tsx',
     }),
     devServer({
       adapter,
-      entry: 'src/index.tsx'
+      entry: 'src/index.tsx',
     })
   ]
 })

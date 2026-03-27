@@ -1,158 +1,153 @@
-import { Hono } from 'hono';
-import { signJWT, hashPassword, verifyPassword } from '../utils/auth';
-import type { Env } from '../types';
+// 인증 API 라우트 (이메일/소셜 로그인)
+import { Hono } from 'hono'
+import { signJWT, verifyPassword, hashPassword, generateId } from '../utils/jwt'
+import type { Env } from '../types'
 
-const auth = new Hono<{ Bindings: Env }>();
+const auth = new Hono<{ Bindings: Env }>()
 
-// POST /api/auth/register - 회원가입
+// ============ 이메일 회원가입 ============
 auth.post('/register', async (c) => {
-  try {
-    const { name, email, phone, password, userType = 'customer' } = await c.req.json();
+  const { name, email, phone, password, userType } = await c.req.json()
 
-    if (!name || !email || !password) {
-      return c.json({ error: '이름, 이메일, 비밀번호는 필수입니다.' }, 400);
-    }
-
-    if (!['customer', 'station_owner'].includes(userType)) {
-      return c.json({ error: '유효하지 않은 사용자 유형입니다.' }, 400);
-    }
-
-    const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first();
-    if (existing) {
-      return c.json({ error: '이미 사용 중인 이메일입니다.' }, 409);
-    }
-
-    const passwordHash = await hashPassword(password);
-    const result = await c.env.DB.prepare(
-      'INSERT INTO users (email, name, phone, password_hash, user_type) VALUES (?, ?, ?, ?, ?)'
-    ).bind(email, name, phone || null, passwordHash, userType).run();
-
-    const userId = result.meta.last_row_id as number;
-    const token = await signJWT(
-      { userId, email, userType, name },
-      c.env.JWT_SECRET || 'dev-secret-key'
-    );
-
-    return c.json({ token, user: { id: userId, name, email, phone, userType } }, 201);
-  } catch (e: any) {
-    return c.json({ error: e.message || '서버 오류가 발생했습니다.' }, 500);
+  if (!name || !email || !password) {
+    return c.json({ error: '필수 정보를 입력해주세요.' }, 400)
   }
-});
+  if (password.length < 8) {
+    return c.json({ error: '비밀번호는 8자 이상이어야 합니다.' }, 400)
+  }
+  if (!['customer', 'station_owner'].includes(userType || 'customer')) {
+    return c.json({ error: '잘못된 회원 유형입니다.' }, 400)
+  }
 
-// POST /api/auth/login - 로그인
+  const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
+  if (existing) {
+    return c.json({ error: '이미 사용 중인 이메일입니다.' }, 400)
+  }
+
+  const passwordHash = await hashPassword(password)
+  const result = await c.env.DB.prepare(
+    `INSERT INTO users (email, name, phone, password_hash, user_type) VALUES (?, ?, ?, ?, ?)`
+  ).bind(email, name, phone || null, passwordHash, userType || 'customer').run()
+
+  const userId = result.meta.last_row_id as number
+  const token = await signJWT(
+    { userId, email, name, userType: userType || 'customer' },
+    c.env.JWT_SECRET || 'dev-secret-key'
+  )
+
+  return c.json({
+    token,
+    user: { id: userId, email, name, phone: phone || null, userType: userType || 'customer' }
+  }, 201)
+})
+
+// ============ 이메일 로그인 ============
 auth.post('/login', async (c) => {
-  try {
-    const { email, password } = await c.req.json();
+  const { email, password } = await c.req.json()
 
-    if (!email || !password) {
-      return c.json({ error: '이메일과 비밀번호를 입력해주세요.' }, 400);
-    }
-
-    const user = await c.env.DB.prepare(
-      'SELECT * FROM users WHERE email = ? AND is_active = 1'
-    ).bind(email).first<any>();
-
-    if (!user) {
-      return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, 401);
-    }
-
-    // 관리자 테스트용 (개발 단계)
-    let isValid = false;
-    if (user.user_type === 'admin' && password === 'Admin1234!') {
-      isValid = true;
-    } else {
-      isValid = await verifyPassword(password, user.password_hash || '');
-    }
-
-    if (!isValid) {
-      return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, 401);
-    }
-
-    const token = await signJWT(
-      { userId: user.id, email: user.email, userType: user.user_type, name: user.name },
-      c.env.JWT_SECRET || 'dev-secret-key'
-    );
-
-    return c.json({
-      token,
-      user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        userType: user.user_type
-      }
-    });
-  } catch (e: any) {
-    return c.json({ error: e.message || '서버 오류가 발생했습니다.' }, 500);
+  if (!email || !password) {
+    return c.json({ error: '이메일과 비밀번호를 입력해주세요.' }, 400)
   }
-});
 
-// GET /api/auth/kakao/callback - 카카오 콜백
+  const user = await c.env.DB.prepare(
+    `SELECT id, email, name, phone, password_hash, user_type, is_active FROM users WHERE email = ? AND social_provider IS NULL`
+  ).bind(email).first<any>()
+
+  if (!user || !user.password_hash) {
+    return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, 401)
+  }
+  if (!user.is_active) {
+    return c.json({ error: '비활성화된 계정입니다.' }, 401)
+  }
+
+  // 어드민 초기 비밀번호 처리 (임시)
+  let valid = false
+  if (user.password_hash.startsWith('$2')) {
+    // bcrypt 형식 - 초기 어드민 계정은 별도 처리
+    if (email === 'admin@ev-wash.com' && password === 'admin1234') {
+      valid = true
+      // pbkdf2로 업데이트
+      const newHash = await hashPassword(password)
+      await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?')
+        .bind(newHash, user.id).run()
+    }
+  } else {
+    valid = await verifyPassword(password, user.password_hash)
+  }
+
+  if (!valid) {
+    return c.json({ error: '이메일 또는 비밀번호가 올바르지 않습니다.' }, 401)
+  }
+
+  const token = await signJWT(
+    { userId: user.id, email: user.email, name: user.name, userType: user.user_type },
+    c.env.JWT_SECRET || 'dev-secret-key'
+  )
+
+  return c.json({
+    token,
+    user: { id: user.id, email: user.email, name: user.name, phone: user.phone, userType: user.user_type }
+  })
+})
+
+// ============ 카카오 소셜 로그인 ============
 auth.get('/kakao/callback', async (c) => {
-  const code = c.req.query('code');
-  if (!code) return c.redirect('/login?error=kakao_failed');
+  const code = c.req.query('code')
+  if (!code) return c.html('<script>window.close();</script>')
 
   try {
+    // 액세스 토큰 발급
     const tokenRes = await fetch('https://kauth.kakao.com/oauth/token', {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: new URLSearchParams({
         grant_type: 'authorization_code',
-        client_id: c.env.KAKAO_API_KEY || '',
-        redirect_uri: c.env.KAKAO_REDIRECT_URI || '',
+        client_id: c.env.KAKAO_CLIENT_ID || '',
+        client_secret: c.env.KAKAO_CLIENT_SECRET || '',
+        redirect_uri: `${c.env.APP_URL}/api/auth/kakao/callback`,
         code,
       }),
-    });
+    })
+    const tokenData = await tokenRes.json<any>()
+    if (!tokenData.access_token) throw new Error('No access token')
 
-    const tokenData = await tokenRes.json() as any;
-    if (!tokenData.access_token) return c.redirect('/login?error=kakao_token_failed');
-
+    // 사용자 정보 조회
     const userRes = await fetch('https://kapi.kakao.com/v2/user/me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
+    })
+    const userData = await userRes.json<any>()
 
-    const kakaoUser = await userRes.json() as any;
-    const kakaoId = String(kakaoUser.id);
-    const kakaoEmail = kakaoUser.kakao_account?.email;
-    const kakaoName = kakaoUser.kakao_account?.profile?.nickname || '카카오사용자';
+    const socialId = String(userData.id)
+    const email = userData.kakao_account?.email || null
+    const name = userData.kakao_account?.profile?.nickname || `카카오사용자${socialId.slice(-4)}`
 
-    let user = await c.env.DB.prepare(
-      'SELECT * FROM users WHERE social_provider = ? AND social_id = ?'
-    ).bind('kakao', kakaoId).first<any>();
-
-    if (!user) {
-      const result = await c.env.DB.prepare(
-        'INSERT INTO users (email, name, social_provider, social_id, user_type) VALUES (?, ?, ?, ?, ?)'
-      ).bind(kakaoEmail || null, kakaoName, 'kakao', kakaoId, 'customer').run();
-
-      user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?')
-        .bind(result.meta.last_row_id).first<any>();
-    }
-
+    const result = await upsertSocialUser(c.env.DB, 'kakao', socialId, email, name)
     const token = await signJWT(
-      { userId: user.id, email: user.email || '', userType: user.user_type, name: user.name },
+      { userId: result.id, email: result.email, name: result.name, userType: result.user_type },
       c.env.JWT_SECRET || 'dev-secret-key'
-    );
+    )
 
-    // 클라이언트로 토큰 전달
     return c.html(`
       <script>
-        window.opener?.postMessage({ type: 'social_login', token: '${token}', user: ${JSON.stringify({ id: user.id, name: user.name, email: user.email, userType: user.user_type })} }, '*');
+        window.opener?.postMessage({
+          type: 'social_login',
+          token: '${token}',
+          user: ${JSON.stringify({ id: result.id, email: result.email, name: result.name, userType: result.user_type })}
+        }, '*');
         window.close();
       </script>
-      <p>로그인 중...</p>
-    `);
-  } catch {
-    return c.redirect('/login?error=kakao_error');
+    `)
+  } catch (err) {
+    console.error('[Kakao Auth]', err)
+    return c.html('<script>alert("카카오 로그인에 실패했습니다."); window.close();</script>')
   }
-});
+})
 
-// GET /api/auth/naver/callback - 네이버 콜백
+// ============ 네이버 소셜 로그인 ============
 auth.get('/naver/callback', async (c) => {
-  const code = c.req.query('code');
-  const state = c.req.query('state');
-  if (!code) return c.redirect('/login?error=naver_failed');
+  const code = c.req.query('code')
+  const state = c.req.query('state')
+  if (!code) return c.html('<script>window.close();</script>')
 
   try {
     const tokenRes = await fetch('https://nid.naver.com/oauth2.0/token', {
@@ -162,70 +157,65 @@ auth.get('/naver/callback', async (c) => {
         grant_type: 'authorization_code',
         client_id: c.env.NAVER_CLIENT_ID || '',
         client_secret: c.env.NAVER_CLIENT_SECRET || '',
-        redirect_uri: c.env.NAVER_REDIRECT_URI || '',
+        redirect_uri: `${c.env.APP_URL}/api/auth/naver/callback`,
         code,
         state: state || '',
       }),
-    });
-
-    const tokenData = await tokenRes.json() as any;
-    if (!tokenData.access_token) return c.redirect('/login?error=naver_token_failed');
+    })
+    const tokenData = await tokenRes.json<any>()
+    if (!tokenData.access_token) throw new Error('No access token')
 
     const userRes = await fetch('https://openapi.naver.com/v1/nid/me', {
       headers: { Authorization: `Bearer ${tokenData.access_token}` },
-    });
+    })
+    const userData = await userRes.json<any>()
+    const profile = userData.response
 
-    const naverData = await userRes.json() as any;
-    const naverUser = naverData.response;
-    const naverId = naverUser.id;
-    const naverEmail = naverUser.email;
-    const naverName = naverUser.name || '네이버사용자';
-    const naverPhone = naverUser.mobile?.replace(/-/g, '');
+    const socialId = String(profile.id)
+    const email = profile.email || null
+    const name = profile.name || profile.nickname || `네이버사용자${socialId.slice(-4)}`
 
-    let user = await c.env.DB.prepare(
-      'SELECT * FROM users WHERE social_provider = ? AND social_id = ?'
-    ).bind('naver', naverId).first<any>();
-
-    if (!user) {
-      const result = await c.env.DB.prepare(
-        'INSERT INTO users (email, name, phone, social_provider, social_id, user_type) VALUES (?, ?, ?, ?, ?, ?)'
-      ).bind(naverEmail || null, naverName, naverPhone || null, 'naver', naverId, 'customer').run();
-
-      user = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?')
-        .bind(result.meta.last_row_id).first<any>();
-    }
-
+    const result = await upsertSocialUser(c.env.DB, 'naver', socialId, email, name)
     const token = await signJWT(
-      { userId: user.id, email: user.email || '', userType: user.user_type, name: user.name },
+      { userId: result.id, email: result.email, name: result.name, userType: result.user_type },
       c.env.JWT_SECRET || 'dev-secret-key'
-    );
+    )
 
     return c.html(`
       <script>
-        window.opener?.postMessage({ type: 'social_login', token: '${token}', user: ${JSON.stringify({ id: user.id, name: user.name, email: user.email, userType: user.user_type })} }, '*');
+        window.opener?.postMessage({
+          type: 'social_login',
+          token: '${token}',
+          user: ${JSON.stringify({ id: result.id, email: result.email, name: result.name, userType: result.user_type })}
+        }, '*');
         window.close();
       </script>
-      <p>로그인 중...</p>
-    `);
-  } catch {
-    return c.redirect('/login?error=naver_error');
+    `)
+  } catch (err) {
+    console.error('[Naver Auth]', err)
+    return c.html('<script>alert("네이버 로그인에 실패했습니다."); window.close();</script>')
   }
-});
+})
 
-// GET /api/auth/me - 내 정보
-auth.get('/me', async (c) => {
-  const authHeader = c.req.header('Authorization');
-  if (!authHeader?.startsWith('Bearer ')) return c.json({ error: '인증 필요' }, 401);
+// ============ 헬퍼 ============
+async function upsertSocialUser(
+  db: D1Database,
+  provider: string,
+  socialId: string,
+  email: string | null,
+  name: string
+) {
+  let user = await db.prepare(
+    'SELECT id, email, name, user_type FROM users WHERE social_provider = ? AND social_id = ?'
+  ).bind(provider, socialId).first<any>()
 
-  const { verifyJWT } = await import('../utils/auth');
-  const token = authHeader.substring(7);
-  const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev-secret-key');
-  if (!payload) return c.json({ error: '유효하지 않은 토큰' }, 401);
+  if (!user) {
+    const result = await db.prepare(
+      `INSERT INTO users (email, name, social_provider, social_id, user_type) VALUES (?, ?, ?, ?, 'customer')`
+    ).bind(email, name, provider, socialId).run()
+    user = { id: result.meta.last_row_id, email, name, user_type: 'customer' }
+  }
+  return user
+}
 
-  const user = await c.env.DB.prepare('SELECT id, name, email, phone, user_type, created_at FROM users WHERE id = ?')
-    .bind(payload.userId).first<any>();
-
-  return c.json({ user });
-});
-
-export default auth;
+export default auth

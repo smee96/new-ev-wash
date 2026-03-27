@@ -1,104 +1,87 @@
-import { Hono } from 'hono';
-import { requireAuth } from '../middleware/auth';
-import { hashPassword, verifyPassword } from '../utils/auth';
-import { sendEmail, csEmailTemplate } from '../utils/email';
-import type { Env } from '../types';
+// 사용자 마이페이지 API
+import { Hono } from 'hono'
+import { authMiddleware } from '../middleware/auth'
+import { hashPassword, verifyPassword } from '../utils/jwt'
+import type { Env, JWTPayload } from '../types'
 
-const user = new Hono<{ Bindings: Env }>();
+type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
 
-// GET /api/user/profile
-user.get('/profile', requireAuth, async (c) => {
-  const me = c.get('user') as any;
-  const u = await c.env.DB.prepare(
-    'SELECT id, name, email, phone, user_type, social_provider, created_at FROM users WHERE id = ?'
-  ).bind(me.userId).first<any>();
-  return c.json({ user: u });
-});
+const user = new Hono<AppEnv>()
+user.use('*', authMiddleware)
 
-// PUT /api/user/profile - 프로필 수정
-user.put('/profile', requireAuth, async (c) => {
-  const me = c.get('user') as any;
-  const { name, phone } = await c.req.json();
+// 내 정보 조회
+user.get('/me', async (c) => {
+  const me = c.get('user')
+  const userData = await c.env.DB.prepare(
+    `SELECT id, email, name, phone, user_type, social_provider, created_at FROM users WHERE id = ?`
+  ).bind(me.userId).first()
+
+  if (!userData) return c.json({ error: '사용자를 찾을 수 없습니다.' }, 404)
+  return c.json({ user: userData })
+})
+
+// 내 정보 수정
+user.patch('/me', async (c) => {
+  const me = c.get('user')
+  const { name, phone } = await c.req.json()
 
   await c.env.DB.prepare(
-    'UPDATE users SET name = ?, phone = ?, updated_at = datetime(\'now\') WHERE id = ?'
-  ).bind(name, phone, me.userId).run();
+    `UPDATE users SET name = COALESCE(?, name), phone = COALESCE(?, phone), updated_at = datetime('now') WHERE id = ?`
+  ).bind(name ?? null, phone ?? null, me.userId).run()
 
-  return c.json({ success: true });
-});
+  return c.json({ message: '수정되었습니다.' })
+})
 
-// POST /api/user/change-password - 비밀번호 변경
-user.post('/change-password', requireAuth, async (c) => {
-  try {
-    const me = c.get('user') as any;
-    const { currentPassword, newPassword } = await c.req.json();
+// 비밀번호 변경
+user.post('/change-password', async (c) => {
+  const me = c.get('user')
+  const { current_password, new_password } = await c.req.json()
 
-    const u = await c.env.DB.prepare('SELECT * FROM users WHERE id = ?').bind(me.userId).first<any>();
-    if (!u?.password_hash) return c.json({ error: '소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.' }, 400);
-
-    const isValid = await verifyPassword(currentPassword, u.password_hash);
-    if (!isValid) return c.json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 401);
-
-    if (newPassword.length < 8) return c.json({ error: '비밀번호는 8자 이상이어야 합니다.' }, 400);
-
-    const newHash = await hashPassword(newPassword);
-    await c.env.DB.prepare('UPDATE users SET password_hash = ? WHERE id = ?').bind(newHash, me.userId).run();
-
-    return c.json({ success: true });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  if (!current_password || !new_password) {
+    return c.json({ error: '현재 비밀번호와 새 비밀번호를 입력해주세요.' }, 400)
   }
-});
-
-// POST /api/user/cs - CS 문의
-user.post('/cs', requireAuth, async (c) => {
-  try {
-    const me = c.get('user') as any;
-    const { type, message } = await c.req.json();
-
-    const u = await c.env.DB.prepare('SELECT name, email FROM users WHERE id = ?').bind(me.userId).first<any>();
-
-    if (c.env.RESEND_API_KEY) {
-      await sendEmail({
-        to: c.env.CS_EMAIL || 'bensmee96@gmail.com',
-        subject: `[EV-Wash CS] ${type || '일반문의'} - ${u?.name}`,
-        html: csEmailTemplate({
-          customerName: u?.name || '알 수 없음',
-          customerEmail: u?.email || '',
-          message,
-          type: type || '일반문의',
-        }),
-      }, c.env.RESEND_API_KEY);
-    }
-
-    return c.json({ success: true, message: '문의가 접수되었습니다.' });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  if (new_password.length < 8) {
+    return c.json({ error: '새 비밀번호는 8자 이상이어야 합니다.' }, 400)
   }
-});
 
-// POST /api/user/cs/anonymous - 비로그인 CS 문의
-user.post('/cs/anonymous', async (c) => {
-  try {
-    const { name, email, type, message } = await c.req.json();
+  const userData = await c.env.DB.prepare(
+    `SELECT password_hash, social_provider FROM users WHERE id = ?`
+  ).bind(me.userId).first<any>()
 
-    if (c.env.RESEND_API_KEY) {
-      await sendEmail({
-        to: c.env.CS_EMAIL || 'bensmee96@gmail.com',
-        subject: `[EV-Wash CS] ${type || '일반문의'} - ${name}`,
-        html: csEmailTemplate({
-          customerName: name || '비회원',
-          customerEmail: email || '',
-          message,
-          type: type || '일반문의',
-        }),
-      }, c.env.RESEND_API_KEY);
-    }
-
-    return c.json({ success: true });
-  } catch (e: any) {
-    return c.json({ error: e.message }, 500);
+  if (userData?.social_provider) {
+    return c.json({ error: '소셜 로그인 계정은 비밀번호를 변경할 수 없습니다.' }, 400)
   }
-});
 
-export default user;
+  const valid = await verifyPassword(current_password, userData?.password_hash || '')
+  if (!valid) {
+    return c.json({ error: '현재 비밀번호가 올바르지 않습니다.' }, 400)
+  }
+
+  const newHash = await hashPassword(new_password)
+  await c.env.DB.prepare(
+    `UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?`
+  ).bind(newHash, me.userId).run()
+
+  return c.json({ message: '비밀번호가 변경되었습니다.' })
+})
+
+// 회원 탈퇴
+user.delete('/me', async (c) => {
+  const me = c.get('user')
+  
+  // 활성 쿠폰이 있으면 탈퇴 불가
+  const activeCoupons = await c.env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM coupon_purchases WHERE user_id = ? AND status IN ('active', 'partial_refunded')`
+  ).bind(me.userId).first<any>()
+  
+  if (activeCoupons?.cnt > 0) {
+    return c.json({ error: `보유 쿠폰 ${activeCoupons.cnt}건을 먼저 환불 후 탈퇴 가능합니다.` }, 400)
+  }
+
+  await c.env.DB.prepare(`UPDATE users SET is_active = 0, email = NULL, name = '탈퇴한 회원', updated_at = datetime('now') WHERE id = ?`)
+    .bind(me.userId).run()
+
+  return c.json({ message: '탈퇴되었습니다.' })
+})
+
+export default user

@@ -1,20 +1,20 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "ev-wash",
+  "name": "new-ev-wash",
   "compatibility_date": "2024-01-01",
   "compatibility_flags": ["nodejs_compat"],
   "pages_build_output_dir": "./dist",
   "d1_databases": [
     {
       "binding": "DB",
-      "database_name": "ev-wash-production",
-      "database_id": "placeholder-will-be-replaced-after-create"
+      "database_name": "new-ev-wash-production",
+      "database_id": "3fafa6c3-e1ec-47d3-aac4-feb442bdfc5d"
     }
   ],
   "r2_buckets": [
     {
       "binding": "R2",
-      "bucket_name": "ev-wash-docs"
+      "bucket_name": "new-ev-wash-docs"
     }
   ]
 }

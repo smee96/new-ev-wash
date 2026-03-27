@@ -1,246 +1,201 @@
--- EV-Wash Database Schema v1.0
--- Cloudflare D1 (SQLite)
+-- EV-Wash 초기 스키마
+-- 쿠폰 유효기간 없음 (valid_days 컬럼 제거)
+-- 플랫폼이 결제 금액 보유, 사용된 쿠폰만큼 익일 정산
 
--- ========================
--- 1. USERS (사용자)
--- ========================
+-- ============ 사용자 ============
 CREATE TABLE IF NOT EXISTS users (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   email TEXT UNIQUE,
   name TEXT NOT NULL,
   phone TEXT,
   password_hash TEXT,
-  user_type TEXT NOT NULL DEFAULT 'customer', -- customer | station_owner | admin
-  social_provider TEXT, -- kakao | naver | null
+  user_type TEXT NOT NULL DEFAULT 'customer' CHECK(user_type IN ('customer', 'station_owner', 'admin')),
+  social_provider TEXT CHECK(social_provider IN ('kakao', 'naver')),
   social_id TEXT,
   is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE(social_provider, social_id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
-CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
-CREATE INDEX IF NOT EXISTS idx_users_user_type ON users(user_type);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_users_social ON users(social_provider, social_id);
+CREATE INDEX IF NOT EXISTS idx_users_social ON users(social_provider, social_id);
 
--- ========================
--- 2. GAS STATION APPLICATIONS (주유소 등록 신청)
--- ========================
-CREATE TABLE IF NOT EXISTS gas_station_applications (
+-- ============ 주유소 신청 ============
+CREATE TABLE IF NOT EXISTS station_applications (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  owner_id INTEGER NOT NULL,
+  owner_id INTEGER NOT NULL REFERENCES users(id),
   station_name TEXT NOT NULL,
   address TEXT NOT NULL,
-  latitude REAL,
-  longitude REAL,
-  phone TEXT NOT NULL,
-  car_wash_type TEXT NOT NULL DEFAULT 'automatic', -- self | automatic | both
-  business_registration TEXT NOT NULL,
-  bank_name TEXT,
-  bank_account TEXT,
-  bank_holder TEXT,
-  business_doc_url TEXT,
-  account_doc_url TEXT,
-  status TEXT NOT NULL DEFAULT 'pending', -- pending | approved | rejected
-  rejection_reason TEXT,
-  applied_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  reviewed_at DATETIME,
-  reviewed_by INTEGER,
-  FOREIGN KEY (owner_id) REFERENCES users(id),
-  FOREIGN KEY (reviewed_by) REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_applications_owner ON gas_station_applications(owner_id);
-CREATE INDEX IF NOT EXISTS idx_applications_status ON gas_station_applications(status);
-
--- ========================
--- 3. GAS STATIONS (승인된 주유소)
--- ========================
-CREATE TABLE IF NOT EXISTS gas_stations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  owner_id INTEGER NOT NULL,
-  station_name TEXT NOT NULL,
-  address TEXT NOT NULL,
+  address_detail TEXT,
   latitude REAL,
   longitude REAL,
   phone TEXT,
-  car_wash_type TEXT NOT NULL DEFAULT 'automatic', -- self | automatic | both
-  business_registration TEXT,
-  bank_name TEXT,
-  bank_account TEXT,
-  bank_holder TEXT,
-  qr_code TEXT UNIQUE,
-  is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (owner_id) REFERENCES users(id)
+  car_wash_type TEXT NOT NULL DEFAULT 'automatic' CHECK(car_wash_type IN ('automatic', 'self', 'both')),
+  business_reg_number TEXT NOT NULL,
+  business_reg_image_key TEXT,       -- R2 스토리지 키
+  bank_name TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  account_holder TEXT NOT NULL,
+  account_image_key TEXT,            -- R2 스토리지 키
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'approved', 'rejected')),
+  reject_reason TEXT,
+  reviewed_by INTEGER REFERENCES users(id),
+  reviewed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_stations_owner ON gas_stations(owner_id);
-CREATE INDEX IF NOT EXISTS idx_stations_location ON gas_stations(latitude, longitude);
-CREATE INDEX IF NOT EXISTS idx_stations_active ON gas_stations(is_active);
+CREATE INDEX IF NOT EXISTS idx_station_apps_owner ON station_applications(owner_id);
+CREATE INDEX IF NOT EXISTS idx_station_apps_status ON station_applications(status);
 
--- ========================
--- 4. COUPONS (쿠폰 템플릿)
--- ========================
+-- ============ 주유소 (승인된 주유소) ============
+CREATE TABLE IF NOT EXISTS stations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  application_id INTEGER REFERENCES station_applications(id),
+  owner_id INTEGER NOT NULL REFERENCES users(id),
+  station_name TEXT NOT NULL,
+  address TEXT NOT NULL,
+  address_detail TEXT,
+  latitude REAL,
+  longitude REAL,
+  phone TEXT,
+  car_wash_type TEXT NOT NULL DEFAULT 'automatic',
+  business_reg_number TEXT NOT NULL,
+  bank_name TEXT NOT NULL,
+  account_number TEXT NOT NULL,
+  account_holder TEXT NOT NULL,
+  qr_code TEXT UNIQUE NOT NULL,      -- UUID 기반 QR 코드 값
+  is_active INTEGER NOT NULL DEFAULT 1,
+  is_closed INTEGER NOT NULL DEFAULT 0,  -- 폐업 여부
+  closed_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_stations_owner ON stations(owner_id);
+CREATE INDEX IF NOT EXISTS idx_stations_qr ON stations(qr_code);
+CREATE INDEX IF NOT EXISTS idx_stations_location ON stations(latitude, longitude);
+
+-- ============ 쿠폰 (주유소별, 유효기간 없음) ============
 CREATE TABLE IF NOT EXISTS coupons (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  station_id INTEGER NOT NULL,
+  station_id INTEGER NOT NULL REFERENCES stations(id),
   title TEXT NOT NULL,
   description TEXT,
-  wash_count INTEGER NOT NULL DEFAULT 1, -- 1~10회
-  original_price INTEGER NOT NULL, -- 원가 (원)
-  discount_price INTEGER NOT NULL, -- 판매가 (원)
-  valid_days INTEGER, -- 구매일로부터 유효기간(일), NULL=무제한
-  remaining_quantity INTEGER NOT NULL DEFAULT 9999, -- 재고
+  original_price INTEGER NOT NULL,   -- 정가 (원)
+  discount_price INTEGER NOT NULL,   -- 판매가 (원)
+  wash_count INTEGER NOT NULL DEFAULT 1 CHECK(wash_count BETWEEN 1 AND 10),
+  total_stock INTEGER,               -- NULL = 무제한
+  remaining_stock INTEGER,
   is_active INTEGER NOT NULL DEFAULT 1,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (station_id) REFERENCES gas_stations(id)
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_coupons_station ON coupons(station_id);
-CREATE INDEX IF NOT EXISTS idx_coupons_active ON coupons(is_active);
 
--- ========================
--- 5. TEMPORARY ORDERS (임시 주문 - 결제 전)
--- ========================
-CREATE TABLE IF NOT EXISTS temporary_orders (
+-- ============ 임시 주문 (토스 결제 전) ============
+CREATE TABLE IF NOT EXISTS temp_orders (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  order_id TEXT UNIQUE NOT NULL,
-  customer_id INTEGER NOT NULL,
-  coupon_id INTEGER NOT NULL,
+  order_id TEXT UNIQUE NOT NULL,     -- 토스용 주문ID
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  coupon_id INTEGER NOT NULL REFERENCES coupons(id),
   quantity INTEGER NOT NULL DEFAULT 1,
   unit_price INTEGER NOT NULL,
   total_amount INTEGER NOT NULL,
-  status TEXT NOT NULL DEFAULT 'pending', -- pending | completed | failed | expired
-  payment_key TEXT,
-  expires_at DATETIME NOT NULL,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES users(id),
-  FOREIGN KEY (coupon_id) REFERENCES coupons(id)
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'paid', 'failed', 'cancelled')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  expires_at TEXT NOT NULL DEFAULT (datetime('now', '+30 minutes'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_temp_orders_customer ON temporary_orders(customer_id);
-CREATE INDEX IF NOT EXISTS idx_temp_orders_order_id ON temporary_orders(order_id);
-CREATE INDEX IF NOT EXISTS idx_temp_orders_status ON temporary_orders(status);
+CREATE INDEX IF NOT EXISTS idx_temp_orders_order_id ON temp_orders(order_id);
+CREATE INDEX IF NOT EXISTS idx_temp_orders_user ON temp_orders(user_id);
 
--- ========================
--- 6. COUPON PURCHASES (쿠폰 구매 완료)
--- ========================
+-- ============ 쿠폰 구매 내역 ============
 CREATE TABLE IF NOT EXISTS coupon_purchases (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  customer_id INTEGER NOT NULL,
-  coupon_id INTEGER NOT NULL,
-  station_id INTEGER NOT NULL,
-  quantity INTEGER NOT NULL DEFAULT 1, -- 구매 수량 (잔여 포함)
-  used_quantity INTEGER NOT NULL DEFAULT 0, -- 사용한 수량
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  coupon_id INTEGER NOT NULL REFERENCES coupons(id),
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  order_id TEXT NOT NULL,            -- 토스 주문ID
+  payment_key TEXT,                  -- 토스 결제키
+  quantity INTEGER NOT NULL DEFAULT 1,
   unit_price INTEGER NOT NULL,
   total_amount INTEGER NOT NULL,
-  payment_method TEXT DEFAULT 'toss',
-  payment_status TEXT NOT NULL DEFAULT 'completed', -- completed | refunded | partial_refunded
-  payment_key TEXT,
-  order_id TEXT,
-  expires_at DATETIME, -- 유효기간 (NULL=무제한)
-  purchased_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (customer_id) REFERENCES users(id),
-  FOREIGN KEY (coupon_id) REFERENCES coupons(id),
-  FOREIGN KEY (station_id) REFERENCES gas_stations(id)
+  remaining_uses INTEGER NOT NULL,   -- 남은 사용 횟수 (wash_count * quantity)
+  status TEXT NOT NULL DEFAULT 'active' CHECK(status IN ('active', 'used', 'refunded', 'partial_refunded')),
+  -- 환불 관련 (유효기간 없음, 미사용 쿠폰은 언제든 환불)
+  refunded_amount INTEGER DEFAULT 0,
+  refunded_uses INTEGER DEFAULT 0,
+  refunded_at TEXT,
+  -- 주유소 폐업 시 강제 환불
+  force_refunded INTEGER DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_purchases_customer ON coupon_purchases(customer_id);
-CREATE INDEX IF NOT EXISTS idx_purchases_coupon ON coupon_purchases(coupon_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_user ON coupon_purchases(user_id);
 CREATE INDEX IF NOT EXISTS idx_purchases_station ON coupon_purchases(station_id);
-CREATE INDEX IF NOT EXISTS idx_purchases_status ON coupon_purchases(payment_status);
+CREATE INDEX IF NOT EXISTS idx_purchases_coupon ON coupon_purchases(coupon_id);
+CREATE INDEX IF NOT EXISTS idx_purchases_status ON coupon_purchases(status);
 
--- ========================
--- 7. COUPON USAGES (쿠폰 사용 기록)
--- ========================
+-- ============ 쿠폰 사용 내역 ============
 CREATE TABLE IF NOT EXISTS coupon_usages (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  purchase_id INTEGER NOT NULL,
-  coupon_id INTEGER NOT NULL,
-  station_id INTEGER NOT NULL,
-  customer_id INTEGER NOT NULL,
-  used_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  verified_by INTEGER, -- 검증한 사장님 ID (NULL=고객 직접 사용)
-  FOREIGN KEY (purchase_id) REFERENCES coupon_purchases(id),
-  FOREIGN KEY (coupon_id) REFERENCES coupons(id),
-  FOREIGN KEY (station_id) REFERENCES gas_stations(id),
-  FOREIGN KEY (customer_id) REFERENCES users(id),
-  FOREIGN KEY (verified_by) REFERENCES users(id)
+  purchase_id INTEGER NOT NULL REFERENCES coupon_purchases(id),
+  user_id INTEGER NOT NULL REFERENCES users(id),
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  coupon_id INTEGER NOT NULL REFERENCES coupons(id),
+  unit_price INTEGER NOT NULL,       -- 1회 사용 금액
+  wash_count_used INTEGER NOT NULL DEFAULT 1,
+  qr_code TEXT NOT NULL,             -- 스캔된 QR코드
+  settled INTEGER NOT NULL DEFAULT 0,  -- 정산 완료 여부
+  settlement_id INTEGER,
+  used_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_usages_purchase ON coupon_usages(purchase_id);
 CREATE INDEX IF NOT EXISTS idx_usages_station ON coupon_usages(station_id);
-CREATE INDEX IF NOT EXISTS idx_usages_customer ON coupon_usages(customer_id);
+CREATE INDEX IF NOT EXISTS idx_usages_settled ON coupon_usages(settled);
 CREATE INDEX IF NOT EXISTS idx_usages_date ON coupon_usages(used_at);
 
--- ========================
--- 8. CANCELLATIONS (취소/환불 내역)
--- ========================
-CREATE TABLE IF NOT EXISTS cancellations (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  purchase_id INTEGER NOT NULL,
-  customer_id INTEGER NOT NULL,
-  cancel_quantity INTEGER NOT NULL,
-  refund_amount INTEGER NOT NULL,
-  cancel_fee INTEGER NOT NULL DEFAULT 0, -- 취소 수수료
-  cancel_reason TEXT,
-  status TEXT NOT NULL DEFAULT 'completed', -- completed | failed
-  payment_key TEXT,
-  toss_cancel_id TEXT,
-  requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  completed_at DATETIME,
-  FOREIGN KEY (purchase_id) REFERENCES coupon_purchases(id),
-  FOREIGN KEY (customer_id) REFERENCES users(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_cancellations_purchase ON cancellations(purchase_id);
-CREATE INDEX IF NOT EXISTS idx_cancellations_customer ON cancellations(customer_id);
-
--- ========================
--- 9. SETTLEMENTS (정산)
--- ========================
+-- ============ 정산 ============
 CREATE TABLE IF NOT EXISTS settlements (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  station_id INTEGER NOT NULL,
-  settlement_date TEXT NOT NULL, -- YYYY-MM-DD (정산 기준일 = 전날 사용분)
-  total_used_count INTEGER NOT NULL DEFAULT 0, -- 사용된 쿠폰 수
-  total_used_amount INTEGER NOT NULL DEFAULT 0, -- 총 사용 금액 (할인가 기준)
-  platform_fee_rate REAL NOT NULL DEFAULT 0.15, -- 플랫폼 수수료율
-  platform_fee INTEGER NOT NULL DEFAULT 0, -- 플랫폼 수수료
-  settlement_amount INTEGER NOT NULL DEFAULT 0, -- 정산 금액 (주유소 수령)
-  status TEXT NOT NULL DEFAULT 'pending', -- pending | processing | completed
-  processed_at DATETIME,
-  processed_by INTEGER,
-  memo TEXT,
-  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (station_id) REFERENCES gas_stations(id),
-  FOREIGN KEY (processed_by) REFERENCES users(id)
+  station_id INTEGER NOT NULL REFERENCES stations(id),
+  settlement_date TEXT NOT NULL,     -- 정산 기준일 (YYYY-MM-DD)
+  gross_amount INTEGER NOT NULL,     -- 사용 쿠폰 총액
+  platform_fee_rate REAL NOT NULL,   -- 수수료율 (예: 0.15)
+  platform_fee INTEGER NOT NULL,     -- 수수료 금액
+  net_amount INTEGER NOT NULL,       -- 실지급액
+  usage_count INTEGER NOT NULL,      -- 사용 건수
+  status TEXT NOT NULL DEFAULT 'pending' CHECK(status IN ('pending', 'processing', 'completed', 'failed')),
+  processed_at TEXT,
+  processed_by INTEGER REFERENCES users(id),
+  note TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_settlements_station ON settlements(station_id);
 CREATE INDEX IF NOT EXISTS idx_settlements_date ON settlements(settlement_date);
 CREATE INDEX IF NOT EXISTS idx_settlements_status ON settlements(status);
-CREATE UNIQUE INDEX IF NOT EXISTS idx_settlements_unique ON settlements(station_id, settlement_date);
 
--- ========================
--- 10. PLATFORM SETTINGS (플랫폼 설정)
--- ========================
+-- ============ 플랫폼 설정 ============
 CREATE TABLE IF NOT EXISTS platform_settings (
-  id INTEGER PRIMARY KEY AUTOINCREMENT,
-  setting_key TEXT UNIQUE NOT NULL,
-  setting_value TEXT NOT NULL,
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL,
   description TEXT,
-  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-  updated_by INTEGER,
-  FOREIGN KEY (updated_by) REFERENCES users(id)
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
--- 기본 설정값
-INSERT OR IGNORE INTO platform_settings (setting_key, setting_value, description) VALUES
+-- ============ 기본 설정값 ============
+INSERT OR IGNORE INTO platform_settings (key, value, description) VALUES
   ('platform_fee_rate', '0.15', '플랫폼 수수료율 (15%)'),
-  ('cancel_fee_hours', '24', '수수료 없는 취소 가능 시간 (시간)'),
-  ('cancel_fee_rate', '0.033', '24시간 이후 취소 수수료율 (3.3%)'),
-  ('cs_email', 'bensmee96@gmail.com', 'CS 이메일');
+  ('cs_email', 'bensmee96@gmail.com', 'CS 이메일'),
+  ('service_name', 'EV-Wash', '서비스명');
+
+-- ============ 어드민 계정 ============
+INSERT OR IGNORE INTO users (email, name, phone, password_hash, user_type) VALUES
+  ('admin@ev-wash.com', 'EV-Wash 관리자', '01000000000', '$2a$10$rQnYJBKJ7QBwNqhfz0JdXuLMvFcS.W7pK5u6kHmNqXH0YOaJ8Zs5u', 'admin');
+-- 기본 비밀번호: admin1234 (bcrypt hash)

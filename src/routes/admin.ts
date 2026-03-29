@@ -207,7 +207,7 @@ admin.get('/stations/:id', async (c) => {
   return c.json({ station })
 })
 
-// 주유소 강제 폐업 (미사용 쿠폰 환불)
+// 주유소 강제 폐업 (미사용 쿠폰 환불 + Toss 실제 취소)
 admin.post('/stations/:id/close', async (c) => {
   const adminUser = c.get('user')
   const stationId = c.req.param('id')
@@ -217,40 +217,125 @@ admin.post('/stations/:id/close', async (c) => {
   ).bind(stationId).first<any>()
   if (!station) return c.json({ error: '주유소를 찾을 수 없거나 이미 폐업되었습니다.' }, 404)
 
-  // 미사용 쿠폰 구매자 목록
+  // 미사용 쿠폰 구매자 목록 (결제키, 결제수단 포함)
   const activePurchases = await c.env.DB.prepare(
-    `SELECT p.*, u.email, c.wash_count
+    `SELECT p.*, u.email, u.name as user_name, c.wash_count
      FROM coupon_purchases p
      JOIN users u ON p.user_id = u.id
      JOIN coupons c ON p.coupon_id = c.id
      WHERE p.station_id = ? AND p.status IN ('active', 'partial_refunded') AND p.remaining_uses > 0`
   ).bind(stationId).all<any>()
 
-  // 각 구매 건 환불 처리 (Toss API 호출은 별도 배치로 처리)
-  const refundOperations = []
+  const secretKey = c.env.TOSS_SECRET_KEY || ''
   const userRefunds = new Map<string, number>()
+  const dbOps: D1PreparedStatement[] = []
+  let tossSuccessCount = 0
+  let tossFailCount = 0
 
   for (const purchase of activePurchases.results) {
-    const pricePerUse = Math.floor(purchase.unit_price / purchase.wash_count)
+    // 환불 금액 계산 (실제 결제금액 기준)
+    const totalUses = purchase.wash_count * purchase.quantity
+    const pricePerUse = Math.floor(purchase.total_amount / totalUses)
     const refundAmount = pricePerUse * purchase.remaining_uses
 
-    if (purchase.email) {
+    // Toss 실제 취소 시도
+    let tossOk = false
+    let tossCancelKey: string | null = null
+    let tossErrorCode: string | null = null
+    let tossErrorMessage: string | null = null
+
+    const isRealPayment = purchase.payment_key && !purchase.payment_key.startsWith('test_')
+    if (isRealPayment && secretKey) {
+      try {
+        const authStr = btoa(`${secretKey}:`)
+        const tossRes = await fetch(
+          `https://api.tosspayments.com/v1/payments/${purchase.payment_key}/cancels`,
+          {
+            method: 'POST',
+            headers: {
+              Authorization: `Basic ${authStr}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              cancelReason: `주유소 폐업으로 인한 자동 환불 (${station.station_name})`,
+              cancelAmount: refundAmount,
+            }),
+          }
+        )
+        const tossData = await tossRes.json() as any
+        if (tossRes.ok) {
+          tossOk = true
+          tossSuccessCount++
+          const cancels = tossData.cancels || []
+          tossCancelKey = cancels[cancels.length - 1]?.transactionKey || null
+        } else {
+          tossErrorCode = tossData.code || 'UNKNOWN'
+          tossErrorMessage = tossData.message || '알 수 없는 오류'
+          tossFailCount++
+        }
+      } catch (err: any) {
+        tossErrorCode = 'NETWORK_ERROR'
+        tossErrorMessage = err?.message || '네트워크 오류'
+        tossFailCount++
+      }
+    } else {
+      // 테스트 결제 또는 결제키 없음 → DB만 처리
+      tossOk = true
+      tossCancelKey = 'local_or_test'
+      tossSuccessCount++
+    }
+
+    // 사용자별 환불 금액 집계 (성공한 건만)
+    if (tossOk && purchase.email) {
       userRefunds.set(purchase.email, (userRefunds.get(purchase.email) || 0) + refundAmount)
     }
 
-    refundOperations.push(
+    // refund_requests 레코드 생성
+    dbOps.push(
+      c.env.DB.prepare(
+        `INSERT INTO refund_requests
+         (purchase_id, user_id, station_id, refund_uses, refund_amount,
+          unit_price_per_use, discount_rate, status, refund_type,
+          payment_method, toss_cancel_key, toss_error_code, toss_error_message,
+          reason, admin_note, processed_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'force_closure', ?, ?, ?, ?,
+                 '주유소 폐업 강제 환불', ?, datetime('now'), datetime('now'))`
+      ).bind(
+        purchase.id, purchase.user_id, stationId,
+        purchase.remaining_uses, refundAmount, pricePerUse,
+        tossOk ? 'completed' : 'failed',
+        purchase.payment_method,
+        tossCancelKey, tossErrorCode, tossErrorMessage,
+        `관리자: ${adminUser.name}`
+      )
+    )
+
+    // coupon_purchases 업데이트
+    dbOps.push(
       c.env.DB.prepare(
         `UPDATE coupon_purchases SET
-           status = 'refunded', remaining_uses = 0,
-           refunded_amount = refunded_amount + ?, refunded_uses = refunded_uses + ?,
-           force_refunded = 1, refunded_at = datetime('now'), updated_at = datetime('now')
+           status = ?,
+           remaining_uses = CASE WHEN ? THEN 0 ELSE remaining_uses END,
+           refunded_amount = refunded_amount + ?,
+           refunded_uses = refunded_uses + ?,
+           toss_total_cancelled = toss_total_cancelled + ?,
+           force_refunded = 1,
+           refunded_at = datetime('now'),
+           updated_at = datetime('now')
          WHERE id = ?`
-      ).bind(refundAmount, purchase.remaining_uses, purchase.id)
+      ).bind(
+        tossOk ? 'refunded' : purchase.status,  // 실패 시 상태 유지
+        tossOk ? 1 : 0,
+        tossOk ? refundAmount : 0,
+        tossOk ? purchase.remaining_uses : 0,
+        tossOk ? refundAmount : 0,
+        purchase.id
+      )
     )
   }
 
-  // 주유소 폐업 처리
-  refundOperations.push(
+  // 주유소 폐업 처리 + 쿠폰 비활성화
+  dbOps.push(
     c.env.DB.prepare(
       `UPDATE stations SET is_closed = 1, is_active = 0, closed_at = datetime('now') WHERE id = ?`
     ).bind(stationId),
@@ -259,11 +344,15 @@ admin.post('/stations/:id/close', async (c) => {
     ).bind(stationId)
   )
 
-  if (refundOperations.length > 0) {
-    await c.env.DB.batch(refundOperations)
+  // DB 일괄 처리
+  if (dbOps.length > 0) {
+    // D1은 batch 100개 제한 → 나눠서 처리
+    for (let i = 0; i < dbOps.length; i += 50) {
+      await c.env.DB.batch(dbOps.slice(i, i + 50))
+    }
   }
 
-  // 환불 안내 이메일
+  // 환불 성공 사용자에게 이메일 발송
   for (const [email, amount] of userRefunds.entries()) {
     await sendEmail(
       c.env.RESEND_API_KEY || '',
@@ -278,7 +367,10 @@ admin.post('/stations/:id/close', async (c) => {
 
   return c.json({
     message: '주유소가 폐업 처리되었습니다.',
-    refunded_purchases: activePurchases.results.length,
+    total_purchases: activePurchases.results.length,
+    toss_success: tossSuccessCount,
+    toss_failed: tossFailCount,
+    note: tossFailCount > 0 ? `${tossFailCount}건은 Toss 취소 실패. 환불요청 내역에서 수동 처리 필요.` : null,
   })
 })
 

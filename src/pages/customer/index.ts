@@ -200,19 +200,34 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('content').innerHTML =
       '<div class="card"><h2 class="text-lg font-bold text-gray-800">'+s.station_name+'</h2><p class="text-sm text-gray-500 mt-1"><i class="fas fa-map-marker-alt text-green-400 mr-1"></i>'+s.address+(s.address_detail?' '+s.address_detail:'')+'</p>'+(s.phone?'<p class="text-sm text-gray-500 mt-1"><i class="fas fa-phone text-green-400 mr-1"></i>'+s.phone+'</p>':'')+'<div class="mt-3"><span class="badge badge-green">'+(s.car_wash_type==='automatic'?'🚗 자동세차':s.car_wash_type==='self'?'💧 셀프세차':'🚗 자동+셀프')+'</span></div></div>'
       +'<h3 class="font-bold text-gray-800">판매 쿠폰</h3>'
-      +(coupons.length?coupons.map(c=>'<div class="card fade-in"><div class="flex justify-between items-start mb-2"><div><h4 class="font-semibold text-gray-800">'+c.title+'</h4>'+(c.description?'<p class="text-xs text-gray-400 mt-0.5">'+c.description+'</p>':'')+'</div><span class="badge badge-red ml-2 flex-shrink-0">'+Math.round((1-c.discount_price/c.original_price)*100)+'%</span></div><div class="flex items-baseline gap-2 mb-3"><span class="text-xl font-bold text-green-600">'+formatPrice(c.discount_price)+'</span><span class="text-sm text-gray-300 line-through">'+formatPrice(c.original_price)+'</span></div><p class="text-xs text-gray-400 mb-3">'+c.wash_count+'회 이용권 · 유효기간 없음</p><button onclick="buyCoupon('+c.id+','+c.discount_price+',\''+c.title.replace(/'/g,'')+'\')" class="btn btn-primary">구매하기</button></div>').join('')
+      +(coupons.length?coupons.map(c=>'<div class="card fade-in"><div class="flex justify-between items-start mb-2"><div><h4 class="font-semibold text-gray-800">'+c.title+'</h4>'+(c.description?'<p class="text-xs text-gray-400 mt-0.5">'+c.description+'</p>':'')+'</div><span class="badge badge-red ml-2 flex-shrink-0">'+Math.round((1-c.discount_price/c.original_price)*100)+'%</span></div><div class="flex items-baseline gap-2 mb-3"><span class="text-xl font-bold text-green-600">'+formatPrice(c.discount_price)+'</span><span class="text-sm text-gray-300 line-through">'+formatPrice(c.original_price)+'</span></div><p class="text-xs text-gray-400 mb-1">'+c.wash_count+'회 이용권 · 유효기간 없음</p><p class="text-xs text-gray-300 mb-3"><i class="fas fa-undo mr-1"></i>미사용 횟수 환불 가능 (결제수단에 따라 3~4일 소요)</p><button onclick="buyCoupon('+c.id+','+c.discount_price+',\''+c.title.replace(/'/g,'')+'\','+c.wash_count+')" class="btn btn-primary">구매하기</button></div>').join('')
       :'<div class="card text-center py-8 text-gray-400">판매 중인 쿠폰이 없습니다</div>');
   } catch { document.getElementById('content').innerHTML='<div class="card text-center py-10 text-red-400">정보를 불러올 수 없습니다</div>'; }
 });
-async function buyCoupon(couponId,price,title) {
-  if (!getUser()) return window.location.href='/login';
-  const qty=parseInt(prompt('구매 수량을 입력하세요 (1매 = '+formatPrice(price)+')','1'));
-  if (!qty||qty<1||isNaN(qty)) return;
+async function buyCoupon(couponId, price, title, washCount) {
+  if (!getUser()) return window.location.href = '/login';
+  const qty = parseInt(prompt('구매 수량을 입력하세요\n(1매 = ' + formatPrice(price) + ', ' + (washCount||1) + '회 이용권)', '1'));
+  if (!qty || qty < 1 || isNaN(qty)) return;
   try {
-    const r=await API.post('/coupons/buy',{couponId,quantity:qty});
-    if (!r.clientKey||r.clientKey==='test_ck_placeholder') { showToast('결제 키 미설정 (테스트)', 'warn'); return; }
-    window.location.href='https://api.tosspayments.com/v1/payments?clientKey='+r.clientKey+'&amount='+r.amount+'&orderId='+r.orderId+'&orderName='+encodeURIComponent(r.orderName)+'&successUrl='+encodeURIComponent(r.successUrl)+'&failUrl='+encodeURIComponent(r.failUrl);
-  } catch(e) { showToast(e.message||'결제 준비 실패','error'); }
+    const r = await API.post('/coupons/buy', { couponId, quantity: qty });
+    if (!r.clientKey || r.clientKey === 'test_ck_placeholder') { showToast('결제 키 미설정 (테스트 모드)', 'warn'); return; }
+    // 결제 전 환불 정책 고지
+    const policy = r.refundPolicy;
+    const ok = confirm(
+      '■ 결제 전 환불 정책 안내\n\n'
+      + '✅ ' + (policy?.summary || '미사용 쿠폰은 언제든 환불 가능합니다.') + '\n\n'
+      + '💳 카드 결제: 부분취소 시 영업일 3~4일 소요\n'
+      + '🏦 계좌이체: 180일 이내 취소 가능, 즉시 환불\n'
+      + '📱 휴대폰: 결제 당월에만 취소 가능\n\n'
+      + '위 내용을 확인하였으며 결제를 진행하시겠습니까?'
+    );
+    if (!ok) return;
+    window.location.href = 'https://api.tosspayments.com/v1/payments?clientKey=' + r.clientKey
+      + '&amount=' + r.amount + '&orderId=' + r.orderId
+      + '&orderName=' + encodeURIComponent(r.orderName)
+      + '&successUrl=' + encodeURIComponent(r.successUrl)
+      + '&failUrl=' + encodeURIComponent(r.failUrl);
+  } catch (e) { showToast(e.message || '결제 준비 실패', 'error'); }
 }
 </script>
 `)

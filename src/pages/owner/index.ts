@@ -108,9 +108,22 @@ export function ownerApplyPage(): string {
       <h3 class="font-semibold text-gray-700 mb-3">기본 정보</h3>
       <div class="space-y-3">
         <input id="station_name" type="text" placeholder="주유소명" class="input" required>
-        <input id="address" type="text" placeholder="주소" class="input" required>
-        <input id="address_detail" type="text" placeholder="상세주소 (선택)" class="input">
-        <input id="phone" type="tel" placeholder="주유소 전화번호 (선택)" class="input">
+        <!-- 주소 검색 영역 -->
+        <div>
+          <div class="flex gap-2">
+            <input id="postcode" type="text" placeholder="우편번호" class="input" readonly
+              style="flex:0 0 110px; background:#f9fafb; color:#6b7280; cursor:default;">
+            <button type="button" onclick="openAddrSearch()"
+              class="btn btn-primary flex-1" style="white-space:nowrap;">
+              <i class="fas fa-search mr-1.5"></i>주소 검색
+            </button>
+          </div>
+          <input id="address" type="text" placeholder="도로명 주소 (검색 후 자동 입력)" class="input mt-2"
+            readonly required style="background:#f9fafb; color:#374151; cursor:default;">
+          <input id="address_detail" type="text" placeholder="상세주소 (동·호수 등)" class="input mt-2">
+        </div>
+        <input id="phone" type="tel" placeholder="주유소 전화번호 (선택)" class="input"
+          oninput="formatPhone(this)" maxlength="13" inputmode="numeric">
         <div>
           <label class="text-xs text-gray-500 mb-1.5 block">세차기 유형</label>
           <select id="car_wash_type" class="input">
@@ -147,8 +160,34 @@ export function ownerApplyPage(): string {
     <button type="submit" id="submitBtn" class="btn btn-primary">신청하기</button>
   </form>
 </div>
+<script src="//t1.daumcdn.net/mapjsapi/bundle/postcode/prod/postcode.v2.js"></script>
 <script>
 window.addEventListener('DOMContentLoaded',()=>requireAuth('station_owner'));
+
+function formatPhone(input) {
+  let v = input.value.replace(/\D/g, '').substring(0, 11);
+  if (v.length < 4) input.value = v;
+  else if (v.length < 8) input.value = v.slice(0,3) + '-' + v.slice(3);
+  else input.value = v.slice(0,3) + '-' + v.slice(3,7) + '-' + v.slice(7);
+}
+
+function openAddrSearch() {
+  new daum.Postcode({
+    oncomplete: function(data) {
+      // 도로명 주소 우선, 없으면 지번 주소
+      const addr = data.roadAddress || data.jibunAddress;
+      document.getElementById('postcode').value = data.zonecode;
+      document.getElementById('address').value = addr;
+      // 상세주소 입력창으로 포커스
+      document.getElementById('address_detail').focus();
+    },
+    // 모바일 전체화면으로 열기
+    width: '100%',
+    height: '100%',
+    maxSuggestItems: 5
+  }).open({ autoClose: true });
+}
+
 async function uploadFile(file) {
   if(!file)return null;
   const fd=new FormData(); fd.append('file',file);
@@ -158,10 +197,27 @@ async function uploadFile(file) {
 }
 async function doApply(e) {
   e.preventDefault();
+  if (!document.getElementById('address').value) {
+    showToast('주소 검색 버튼을 눌러 주소를 입력해주세요.', 'error');
+    return;
+  }
   const btn=document.getElementById('submitBtn'); btn.disabled=true; btn.textContent='제출 중...';
   try {
     const [bizKey,accKey]=await Promise.all([uploadFile(document.getElementById('biz_file').files[0]),uploadFile(document.getElementById('acc_file').files[0])]);
-    await API.post('/stations/apply',{station_name:document.getElementById('station_name').value,address:document.getElementById('address').value,address_detail:document.getElementById('address_detail').value||undefined,phone:document.getElementById('phone').value||undefined,car_wash_type:document.getElementById('car_wash_type').value,business_reg_number:document.getElementById('business_reg_number').value,bank_name:document.getElementById('bank_name').value,account_number:document.getElementById('account_number').value,account_holder:document.getElementById('account_holder').value,business_reg_image_key:bizKey||undefined,account_image_key:accKey||undefined});
+    const phoneRaw = document.getElementById('phone').value.replace(/\D/g, '');
+    await API.post('/stations/apply',{
+      station_name: document.getElementById('station_name').value,
+      address: document.getElementById('address').value,
+      address_detail: document.getElementById('address_detail').value || undefined,
+      phone: phoneRaw || undefined,
+      car_wash_type: document.getElementById('car_wash_type').value,
+      business_reg_number: document.getElementById('business_reg_number').value,
+      bank_name: document.getElementById('bank_name').value,
+      account_number: document.getElementById('account_number').value,
+      account_holder: document.getElementById('account_holder').value,
+      business_reg_image_key: bizKey || undefined,
+      account_image_key: accKey || undefined
+    });
     showToast('신청이 접수되었습니다!');
     setTimeout(()=>window.location.href='/owner',1200);
   } catch(e){showToast(e.message||'신청 실패','error');btn.disabled=false;btn.textContent='신청하기';}

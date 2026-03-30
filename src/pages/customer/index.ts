@@ -62,17 +62,31 @@ export function registerPage(): string {
   </div>
   <div class="px-5 py-6">
     <form onsubmit="doRegister(event)" class="space-y-4">
+      <!-- 회원 유형 선택 카드 -->
       <div>
-        <label class="text-xs text-gray-500 mb-1.5 block font-medium">회원 유형</label>
-        <select id="userType" class="input" onchange="onUserTypeChange(this.value)">
-          <option value="customer">일반 고객</option>
-          <option value="station_owner">주유소 사장님</option>
-        </select>
+        <label class="text-xs text-gray-500 mb-2 block font-medium">회원 유형 <span class="text-red-500">*</span></label>
+        <div class="grid grid-cols-2 gap-3">
+          <button type="button" id="typeCard_customer" onclick="selectUserType('customer')"
+            class="type-card rounded-2xl border-2 border-gray-200 p-4 text-center transition-all duration-150 bg-white">
+            <div class="text-2xl mb-1.5">🙋</div>
+            <div class="font-semibold text-gray-800 text-sm">일반 고객</div>
+            <div class="text-xs text-gray-400 mt-0.5">세차 쿠폰 이용</div>
+          </button>
+          <button type="button" id="typeCard_station_owner" onclick="selectUserType('station_owner')"
+            class="type-card rounded-2xl border-2 border-gray-200 p-4 text-center transition-all duration-150 bg-white">
+            <div class="text-2xl mb-1.5">🏪</div>
+            <div class="font-semibold text-gray-800 text-sm">주유소 사장님</div>
+            <div class="text-xs text-gray-400 mt-0.5">주유소 등록·관리</div>
+          </button>
+        </div>
+        <p id="typeHint" class="text-xs text-red-500 mt-1.5 hidden">회원 유형을 선택해주세요.</p>
+        <input type="hidden" id="userType" value="">
       </div>
       <input id="name" type="text" placeholder="이름" class="input" required autocomplete="name">
       <input id="email" type="email" placeholder="이메일" class="input" required autocomplete="email">
       <div>
-        <input id="phone" type="tel" placeholder="휴대폰 번호 (선택)" class="input" autocomplete="tel">
+        <input id="phone" type="tel" placeholder="휴대폰 번호 (선택)" class="input" autocomplete="tel"
+          oninput="formatPhone(this)" maxlength="13" inputmode="numeric">
         <p id="phoneHint" class="text-xs text-gray-400 mt-1.5"></p>
       </div>
       <div>
@@ -88,7 +102,38 @@ export function registerPage(): string {
     <p class="text-center text-sm text-gray-400 mt-5">이미 계정이 있으신가요? <a href="/login" class="ev-green font-semibold">로그인</a></p>
   </div>
 </div>
+<style>
+.type-card { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.type-card:active { transform: scale(0.97); }
+.type-card.selected { border-color: #22c55e !important; background: #f0fdf4 !important; }
+.type-card.selected .font-semibold { color: #16a34a; }
+</style>
 <script>
+function selectUserType(type) {
+  document.getElementById('userType').value = type;
+  document.querySelectorAll('.type-card').forEach(el => el.classList.remove('selected'));
+  document.getElementById('typeCard_' + type).classList.add('selected');
+  document.getElementById('typeHint').classList.add('hidden');
+  // 전화번호 필수 여부
+  const phoneInput = document.getElementById('phone');
+  const phoneHint = document.getElementById('phoneHint');
+  if (type === 'station_owner') {
+    phoneInput.placeholder = '휴대폰 번호 (필수)';
+    phoneInput.required = true;
+    phoneHint.textContent = '※ 사장님 계정은 전화번호가 필수입니다.';
+    phoneHint.className = 'text-xs text-red-500 mt-1.5';
+  } else {
+    phoneInput.placeholder = '휴대폰 번호 (선택)';
+    phoneInput.required = false;
+    phoneHint.textContent = '';
+  }
+}
+function formatPhone(input) {
+  let v = input.value.replace(/\D/g, '').substring(0, 11);
+  if (v.length < 4) input.value = v;
+  else if (v.length < 8) input.value = v.slice(0,3) + '-' + v.slice(3);
+  else input.value = v.slice(0,3) + '-' + v.slice(3,7) + '-' + v.slice(7);
+}
 function checkPw2() {
   const pw = document.getElementById('pw').value;
   const pw2 = document.getElementById('pw2').value;
@@ -131,26 +176,17 @@ function checkPw2() {
     pw2Input.style.borderColor = '#ef4444';
   }
 }
-function onUserTypeChange(type) {
-  const phoneInput = document.getElementById('phone');
-  const phoneHint = document.getElementById('phoneHint');
-  if (type === 'station_owner') {
-    phoneInput.placeholder = '휴대폰 번호 (필수)';
-    phoneInput.required = true;
-    phoneHint.textContent = '※ 사장님 계정은 전화번호가 필수입니다.';
-    phoneHint.className = 'text-xs text-red-500 mt-1.5';
-  } else {
-    phoneInput.placeholder = '휴대폰 번호 (선택)';
-    phoneInput.required = false;
-    phoneHint.textContent = '';
-  }
-}
 async function doRegister(e) {
   e.preventDefault();
-  if (document.getElementById('pw').value !== document.getElementById('pw2').value) return showToast('비밀번호가 일치하지 않습니다.', 'error');
   const userType = document.getElementById('userType').value;
-  const phone = document.getElementById('phone').value.trim();
-  if (userType === 'station_owner' && !phone) {
+  if (!userType) {
+    document.getElementById('typeHint').classList.remove('hidden');
+    document.querySelector('.type-card').closest('div').scrollIntoView({ behavior: 'smooth' });
+    return;
+  }
+  if (document.getElementById('pw').value !== document.getElementById('pw2').value) return showToast('비밀번호가 일치하지 않습니다.', 'error');
+  const phoneRaw = document.getElementById('phone').value.replace(/\D/g, '');
+  if (userType === 'station_owner' && !phoneRaw) {
     showToast('사장님 계정은 전화번호를 입력해주세요.', 'error');
     document.getElementById('phone').focus();
     return;
@@ -159,7 +195,7 @@ async function doRegister(e) {
     const r = await API.post('/auth/register', {
       name: document.getElementById('name').value,
       email: document.getElementById('email').value,
-      phone: phone || undefined,
+      phone: phoneRaw || undefined,
       password: document.getElementById('pw').value,
       userType
     });
@@ -652,7 +688,8 @@ export function myPage(): string {
       </div>
       <div>
         <label class="text-xs text-gray-500 mb-1.5 block">전화번호</label>
-        <input id="editPhone" type="tel" class="input" placeholder="전화번호">
+        <input id="editPhone" type="tel" class="input" placeholder="010-0000-0000"
+          oninput="formatPhone(this)" maxlength="13" inputmode="numeric">
       </div>
     </div>
     <div class="flex gap-3">
@@ -691,18 +728,25 @@ window.addEventListener('DOMContentLoaded', async () => {
     if (_myInfo.social_provider) document.getElementById('pwSection').style.display = 'none';
   } catch {}
 });
+function phoneToDisplay(p) {
+  if (!p) return '';
+  const v = p.replace(/\D/g, '');
+  if (v.length < 4) return v;
+  if (v.length < 8) return v.slice(0,3) + '-' + v.slice(3);
+  return v.slice(0,3) + '-' + v.slice(3,7) + '-' + v.slice(7);
+}
 function showProfileEditModal() {
   document.getElementById('editName').value = _myInfo.name || '';
-  document.getElementById('editPhone').value = _myInfo.phone || '';
+  document.getElementById('editPhone').value = phoneToDisplay(_myInfo.phone);
   openModal('profileModal');
 }
 async function saveProfile() {
   const name = document.getElementById('editName').value.trim();
-  const phone = document.getElementById('editPhone').value.trim();
+  const phoneRaw = document.getElementById('editPhone').value.replace(/\D/g, '');
   if (!name) return showToast('이름을 입력해주세요.', 'error');
   try {
-    await API.patch('/user/me', { name, phone: phone || null });
-    _myInfo.name = name; _myInfo.phone = phone;
+    await API.patch('/user/me', { name, phone: phoneRaw || null });
+    _myInfo.name = name; _myInfo.phone = phoneRaw;
     document.getElementById('myName').textContent = name;
     // localStorage의 ev_user도 업데이트 → 홈 등 다른 페이지와 동기화
     const stored = getUser();

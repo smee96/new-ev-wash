@@ -27,8 +27,8 @@ import {
 
 // HTML 페이지 - 어드민
 import {
-  adminLoginPage, adminDashboardPage, adminApplicationsPage, adminStationsPage,
-  adminUsersPage, adminPaymentsPage, adminSettlementPage, adminSettingsPage
+  adminLoginPage, adminDashboardPage, adminApplicationsPage, adminApplicationDetailPage,
+  adminStationsPage, adminUsersPage, adminPaymentsPage, adminSettlementPage, adminSettingsPage
 } from './pages/admin'
 
 const app = new Hono<{ Bindings: Env }>()
@@ -81,7 +81,7 @@ app.get('/owner/stations/:id', (c) => c.html(ownerStationPage()))
 app.get('/admin', (c) => c.html(adminDashboardPage()))
 app.get('/admin/login', (c) => c.html(adminLoginPage()))
 app.get('/admin/applications', (c) => c.html(adminApplicationsPage()))
-app.get('/admin/applications/:id', (c) => c.html(adminApplicationsPage())) // 상세는 모달
+app.get('/admin/applications/:id', (c) => c.html(adminApplicationDetailPage()))
 app.get('/admin/stations', (c) => c.html(adminStationsPage()))
 app.get('/admin/stations/:id', (c) => c.html(adminStationsPage()))
 app.get('/admin/users', (c) => c.html(adminUsersPage()))

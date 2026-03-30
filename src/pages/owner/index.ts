@@ -229,8 +229,8 @@ async function doApply(e) {
 export function ownerStationPage(): string {
   return htmlPage('주유소 관리', `
 <!-- ★ 스크립트를 body 최상단에 먼저 정의해야 onclick="showTab(...)" 참조 오류 없음 -->
-<script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.4/build/qrcode.min.js"></script>
 <script>
+
 /* ── 전역 상태 ── */
 const stationId = location.pathname.split('/').pop();
 let _currentTab = 'coupons';
@@ -418,6 +418,12 @@ async function loadQR() {
   el.innerHTML = spinner();
   try {
     const r = await API.get('/stations/my-stations/' + stationId + '/qr');
+    if (!r || !r.qr_code) throw new Error('QR 코드 데이터가 없습니다.');
+
+    // Google Charts QR API - 가장 신뢰성 높은 방식
+    const qrImgSrc = 'https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl='
+      + encodeURIComponent(r.qr_code) + '&choe=UTF-8&chld=M|2';
+
     el.innerHTML = \`
       <div class="card text-center py-6">
         <div class="w-14 h-14 bg-green-100 rounded-2xl flex items-center justify-center mx-auto mb-3">
@@ -426,33 +432,40 @@ async function loadQR() {
         <h3 class="font-bold text-gray-800 text-lg mb-1">\${r.station_name}</h3>
         <p class="text-xs text-gray-400 mb-6">고객이 세차 완료 후 이 QR을 스캔합니다</p>
         <div class="bg-white rounded-2xl p-4 inline-block shadow-sm border border-gray-100 mb-5">
-          <canvas id="qrCanvas"></canvas>
+          <img id="qrImg" src="\${qrImgSrc}" alt="QR코드"
+            width="220" height="220"
+            style="display:block;image-rendering:pixelated"
+            onerror="this.outerHTML='<div class=\\'text-red-400 text-sm p-4\\'>QR 이미지 로드 실패</div>'">
         </div>
         <p class="text-xs text-gray-300 break-all px-4 mb-5">\${r.qr_code}</p>
-        <div class="flex gap-3 justify-center">
-          <button onclick="downloadQR()" class="btn btn-primary flex-1">
+        <div class="flex gap-3">
+          <button onclick="downloadQR('\${qrImgSrc}', '\${r.station_name}')" class="btn btn-primary flex-1">
             <i class="fas fa-download mr-2"></i>이미지 저장
           </button>
           <button onclick="copyQR('\${r.qr_code}')" class="btn btn-outline flex-1">
-            <i class="fas fa-copy mr-2"></i>URL 복사
+            <i class="fas fa-copy mr-2"></i>코드 복사
           </button>
         </div>
       </div>
     \`;
-    QRCode.toCanvas(document.getElementById('qrCanvas'), r.qr_code, {
-      width: 220, margin: 2,
-      color: { dark: '#1f2937', light: '#ffffff' }
-    });
-  } catch(e) { el.innerHTML = errBox('QR 코드를 불러올 수 없습니다: ' + e.message); }
+  } catch(e) {
+    const msg = e?.data?.error || e?.message || '알 수 없는 오류';
+    el.innerHTML = errBox('QR 코드를 불러올 수 없습니다: ' + msg);
+  }
 }
 
-function downloadQR() {
-  const c = document.getElementById('qrCanvas');
-  if (!c) return;
-  const a = document.createElement('a');
-  a.download = 'ev-wash-qr.png';
-  a.href = c.toDataURL();
-  a.click();
+async function downloadQR(src, name) {
+  try {
+    showToast('이미지 저장 중...', 'info');
+    const res = await fetch(src);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.download = (name || 'ev-wash') + '-qr.png';
+    a.href = url;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  } catch { showToast('이미지 저장에 실패했습니다.', 'error'); }
 }
 function copyQR(url) {
   navigator.clipboard.writeText(url).then(() => showToast('URL이 복사되었습니다.'))

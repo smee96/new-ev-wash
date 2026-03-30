@@ -75,14 +75,62 @@ export function registerPage(): string {
         <input id="phone" type="tel" placeholder="휴대폰 번호 (선택)" class="input" autocomplete="tel">
         <p id="phoneHint" class="text-xs text-gray-400 mt-1.5"></p>
       </div>
-      <input id="pw" type="password" placeholder="비밀번호 (8자 이상)" class="input" required minlength="8" autocomplete="new-password">
-      <input id="pw2" type="password" placeholder="비밀번호 확인" class="input" required autocomplete="new-password">
+      <div>
+        <input id="pw" type="password" placeholder="비밀번호 (8자 이상)" class="input" required minlength="8" autocomplete="new-password" oninput="checkPw2()">
+        <p id="pwHint" class="text-xs mt-1.5 hidden"></p>
+      </div>
+      <div>
+        <input id="pw2" type="password" placeholder="비밀번호 확인" class="input" required autocomplete="new-password" oninput="checkPw2()">
+        <p id="pw2Hint" class="text-xs mt-1.5 hidden"></p>
+      </div>
       <button type="submit" class="btn btn-primary">가입하기</button>
     </form>
     <p class="text-center text-sm text-gray-400 mt-5">이미 계정이 있으신가요? <a href="/login" class="ev-green font-semibold">로그인</a></p>
   </div>
 </div>
 <script>
+function checkPw2() {
+  const pw = document.getElementById('pw').value;
+  const pw2 = document.getElementById('pw2').value;
+  const pwInput = document.getElementById('pw');
+  const pw2Input = document.getElementById('pw2');
+  const pwHint = document.getElementById('pwHint');
+  const pw2Hint = document.getElementById('pw2Hint');
+
+  // 비밀번호 길이 체크
+  if (pw.length > 0 && pw.length < 8) {
+    pwHint.textContent = '비밀번호는 8자 이상이어야 합니다.';
+    pwHint.className = 'text-xs mt-1.5 text-red-500';
+    pwHint.classList.remove('hidden');
+    pwInput.style.borderColor = '#ef4444';
+  } else if (pw.length >= 8) {
+    pwHint.textContent = '사용 가능한 비밀번호입니다.';
+    pwHint.className = 'text-xs mt-1.5 text-green-500';
+    pwHint.classList.remove('hidden');
+    pwInput.style.borderColor = '#22c55e';
+  } else {
+    pwHint.classList.add('hidden');
+    pwInput.style.borderColor = '';
+  }
+
+  // 비밀번호 확인 일치 체크
+  if (pw2.length === 0) {
+    pw2Hint.classList.add('hidden');
+    pw2Input.style.borderColor = '';
+    return;
+  }
+  if (pw === pw2) {
+    pw2Hint.textContent = '✓ 비밀번호가 일치합니다.';
+    pw2Hint.className = 'text-xs mt-1.5 text-green-500';
+    pw2Hint.classList.remove('hidden');
+    pw2Input.style.borderColor = '#22c55e';
+  } else {
+    pw2Hint.textContent = '✗ 비밀번호가 일치하지 않습니다.';
+    pw2Hint.className = 'text-xs mt-1.5 text-red-500';
+    pw2Hint.classList.remove('hidden');
+    pw2Input.style.borderColor = '#ef4444';
+  }
+}
 function onUserTypeChange(type) {
   const phoneInput = document.getElementById('phone');
   const phoneHint = document.getElementById('phoneHint');

@@ -57,7 +57,7 @@ async function loadApplications() {
     // 반려된 신청 표시 (승인 여부와 무관하게 항상 표시)
     if(rejected.length){
       const rList=rejected.map(function(a){
-        return '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:8px">'
+        return '<div id="app-item-'+a.id+'" style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:8px">'
           +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
           +'<span style="font-weight:600;font-size:14px;color:#1a202c">'+a.station_name+'</span>'
           +'<span style="font-size:11px;color:#c0c8d8">'+(a.created_at?a.created_at.slice(0,10):'-')+'</span>'
@@ -66,8 +66,12 @@ async function loadApplications() {
           +'<i class="fas fa-exclamation-circle" style="color:#dc2626;font-size:12px;margin-top:2px;flex-shrink:0"></i>'
           +'<p style="font-size:12px;color:#dc2626;margin:0;line-height:1.5">'+(a.reject_reason||'반려 사유가 기록되지 않았습니다.')+'</p>'
           +'</div>'
-          +'<a href="/owner/apply" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;padding:6px 12px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">'
+          +'<div style="display:flex;gap:8px">'
+          +'<a href="/owner/apply" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;padding:8px 0;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">'
           +'<i class="fas fa-redo" style="font-size:11px"></i>재신청하기</a>'
+          +'<button onclick="deleteApplication('+a.id+')" style="flex:1;display:inline-flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;color:#ef4444;border:1px solid #fecaca;border-radius:8px;background:#fff5f5;padding:8px 0;cursor:pointer">'
+          +'<i class="fas fa-trash" style="font-size:11px"></i>삭제</button>'
+          +'</div>'
           +'</div>';
       }).join('');
       parts.push('<div class="card" style="border-left:4px solid #ef4444">'
@@ -94,12 +98,69 @@ async function loadStations() {
       return;
     }
     el.innerHTML='<h2 class="section-title">내 주유소</h2>'
-      +list.map(s=>'<a href="/owner/stations/'+s.id+'" class="card block mb-3 fade-in" style="border:1px solid #eef1f7"><div class="flex items-center justify-between"><div class="flex-1 min-w-0"><div class="flex items-center gap-2 mb-1"><h3 class="font-semibold truncate" style="color:#1a202c">'+s.station_name+'</h3>'
-      +(s.is_closed?'<span class="badge badge-red flex-shrink-0">폐업</span>':s.is_active?'<span class="badge badge-green flex-shrink-0">운영중</span>':'<span class="badge badge-gray flex-shrink-0">비활성</span>')
-      +'</div><p class="text-xs truncate" style="color:#8e9ab4">'+s.address+'</p><div class="flex gap-4 mt-1.5 text-xs" style="color:#8e9ab4"><span>쿠폰 <b style="color:#1a2f5e">'+s.coupon_count+'</b>종</span><span>이번달 <b style="color:#1a2f5e">'+s.monthly_usages+'</b>건</span></div></div><i class="fas fa-chevron-right ml-2" style="color:#dde3ef"></i></div></a>').join('')
+      +list.map(function(s){
+        const canDelete=(s.total_purchases===0||s.total_purchases==='0');
+        return '<div id="station-item-'+s.id+'" class="card mb-3 fade-in" style="border:1px solid #eef1f7">'
+          +'<a href="/owner/stations/'+s.id+'" style="text-decoration:none;display:block">'
+          +'<div class="flex items-center justify-between">'
+          +'<div class="flex-1 min-w-0">'
+          +'<div class="flex items-center gap-2 mb-1">'
+          +'<h3 class="font-semibold truncate" style="color:#1a202c">'+s.station_name+'</h3>'
+          +(s.is_closed?'<span class="badge badge-red flex-shrink-0">폐업</span>':s.is_active?'<span class="badge badge-green flex-shrink-0">운영중</span>':'<span class="badge badge-gray flex-shrink-0">비활성</span>')
+          +'</div>'
+          +'<p class="text-xs truncate" style="color:#8e9ab4">'+s.address+'</p>'
+          +'<div class="flex gap-4 mt-1.5 text-xs" style="color:#8e9ab4">'
+          +'<span>쿠폰 <b style="color:#1a2f5e">'+s.coupon_count+'</b>종</span>'
+          +'<span>이번달 <b style="color:#1a2f5e">'+s.monthly_usages+'</b>건</span>'
+          +'</div>'
+          +'</div>'
+          +'<i class="fas fa-chevron-right ml-2" style="color:#dde3ef"></i>'
+          +'</div>'
+          +'</a>'
+          +(canDelete
+            ?'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f4f7fb">'
+            +'<button onclick="deleteStation('+s.id+',\''+s.station_name+'\')" '
+            +'style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;color:#ef4444;background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:8px 0;cursor:pointer">'
+            +'<i class="fas fa-trash" style="font-size:11px"></i>주유소 삭제</button>'
+            +'</div>'
+            :'')
+          +'</div>';
+      }).join('')
       +'<a href="/owner/apply" class="btn btn-outline mt-2"><i class="fas fa-plus mr-2"></i>주유소 추가 등록</a>';
   } catch {}
 }
+function deleteApplication(id) {
+  showDialog({
+    icon:'🗑️', title:'신청 삭제',
+    msg:'반려된 신청 내역을 삭제하시겠습니까?',
+    confirmText:'삭제', confirmClass:'btn-danger',
+    onConfirm: async function() {
+      try {
+        await API.delete('/stations/my-applications/'+id);
+        showToast('삭제되었습니다.');
+        const el=document.getElementById('app-item-'+id);
+        if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(function(){loadApplications();},300); }
+      } catch(e){ showToast(e.message||'삭제 실패','error'); }
+    }
+  });
+}
+
+function deleteStation(id, name) {
+  showDialog({
+    icon:'⚠️', title:'주유소 삭제',
+    msg:'<b>'+name+'</b>을(를) 삭제하시겠습니까?<br><span style="font-size:12px;color:#8e9ab4">등록된 쿠폰도 함께 삭제됩니다.</span>',
+    confirmText:'삭제', confirmClass:'btn-danger',
+    onConfirm: async function() {
+      try {
+        await API.delete('/stations/my-stations/'+id);
+        showToast('주유소가 삭제되었습니다.');
+        const el=document.getElementById('station-item-'+id);
+        if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(function(){loadStations();},300); }
+      } catch(e){ showToast(e.message||'삭제 실패','error'); }
+    }
+  });
+}
+
 function doLogout() {
   showDialog({ icon:'👋', title:'로그아웃', msg:'로그아웃 하시겠습니까?', confirmText:'로그아웃', confirmClass:'btn-danger', onConfirm: logout });
 }

@@ -154,11 +154,56 @@ stations.get('/my-stations', authMiddleware, requireRole('station_owner'), async
     `SELECT s.id, s.station_name, s.address, s.phone, s.car_wash_type,
             s.is_active, s.is_closed, s.qr_code, s.created_at,
             (SELECT COUNT(*) FROM coupons WHERE station_id = s.id AND is_active = 1) as coupon_count,
-            (SELECT COUNT(*) FROM coupon_usages WHERE station_id = s.id AND used_at >= date('now', '-30 days')) as monthly_usages
+            (SELECT COUNT(*) FROM coupon_usages WHERE station_id = s.id AND used_at >= date('now', '-30 days')) as monthly_usages,
+            (SELECT COUNT(*) FROM coupon_purchases WHERE station_id = s.id) as total_purchases
      FROM stations s WHERE s.owner_id = ? ORDER BY s.created_at DESC`
   ).bind(user.userId).all()
 
   return c.json({ stations: stationList.results })
+})
+
+// 반려된 신청 삭제 (본인 것만, rejected 상태만)
+stations.delete('/my-applications/:id', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const id = c.req.param('id')
+
+  const app = await c.env.DB.prepare(
+    `SELECT id, status FROM station_applications WHERE id = ? AND owner_id = ?`
+  ).bind(id, user.userId).first<any>()
+
+  if (!app) return c.json({ error: '신청을 찾을 수 없습니다.' }, 404)
+  if (app.status !== 'rejected') return c.json({ error: '반려된 신청만 삭제할 수 있습니다.' }, 400)
+
+  await c.env.DB.prepare(
+    `DELETE FROM station_applications WHERE id = ? AND owner_id = ?`
+  ).bind(id, user.userId).run()
+
+  return c.json({ message: '삭제되었습니다.' })
+})
+
+// 주유소 삭제 (본인 것만, 판매된 쿠폰이 하나도 없을 때만)
+stations.delete('/my-stations/:id', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('id')
+
+  const station = await c.env.DB.prepare(
+    `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
+  ).bind(stationId, user.userId).first<any>()
+  if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404)
+
+  const purchaseCount = await c.env.DB.prepare(
+    `SELECT COUNT(*) as cnt FROM coupon_purchases WHERE station_id = ?`
+  ).bind(stationId).first<any>()
+  if (purchaseCount && purchaseCount.cnt > 0)
+    return c.json({ error: '판매된 쿠폰이 있어 삭제할 수 없습니다. 폐업 처리를 이용해주세요.' }, 400)
+
+  // 연관 데이터 순서대로 삭제 (쿠폰 → 주유소)
+  await c.env.DB.batch([
+    c.env.DB.prepare(`DELETE FROM coupons WHERE station_id = ?`).bind(stationId),
+    c.env.DB.prepare(`DELETE FROM stations WHERE id = ? AND owner_id = ?`).bind(stationId, user.userId),
+  ])
+
+  return c.json({ message: '주유소가 삭제되었습니다.' })
 })
 
 // 내 주유소 상세 (사장님)

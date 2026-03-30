@@ -34,7 +34,7 @@ async function doLogin(e) {
     setUser(r.token, r.user);
     if (r.user.userType === 'admin') window.location.href = '/admin';
     else if (r.user.userType === 'station_owner') window.location.href = '/owner';
-    else window.location.href = '/';
+    else window.location.href = '/home';
   } catch(e) { showToast(e.message || '로그인 실패', 'error'); btn.disabled = false; btn.textContent = '로그인'; }
 }
 function socialLogin(provider) {
@@ -43,7 +43,7 @@ function socialLogin(provider) {
     ? 'https://kauth.kakao.com/oauth/authorize?client_id=KAKAO_PLACEHOLDER&redirect_uri=' + redirect + '&response_type=code'
     : 'https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=NAVER_PLACEHOLDER&redirect_uri=' + redirect + '&state=' + Math.random().toString(36).slice(2);
   window.open(url, 'social_login', 'width=520,height=620');
-  window.addEventListener('message', e => { if (e.data?.type === 'social_login') { setUser(e.data.token, e.data.user); window.location.href = e.data.user.userType === 'station_owner' ? '/owner' : '/'; } }, { once: true });
+  window.addEventListener('message', e => { if (e.data?.type === 'social_login') { setUser(e.data.token, e.data.user); window.location.href = e.data.user.userType === 'station_owner' ? '/owner' : '/home'; } }, { once: true });
 }
 </script>
 `)
@@ -74,7 +74,7 @@ async function doRegister(e) {
     const r = await API.post('/auth/register', { name: document.getElementById('name').value, email: document.getElementById('email').value, phone: document.getElementById('phone').value || undefined, password: document.getElementById('pw').value, userType: document.getElementById('userType').value });
     setUser(r.token, r.user);
     showToast('가입되었습니다!');
-    setTimeout(() => window.location.href = r.user.userType === 'station_owner' ? '/owner' : '/', 800);
+    setTimeout(() => window.location.href = r.user.userType === 'station_owner' ? '/owner' : '/home', 800);
   } catch(e) { showToast(e.message || '가입 실패', 'error'); }
 }
 </script>
@@ -116,7 +116,7 @@ export function customerHomePage(): string {
   </div>
 </div>
 <nav class="bottom-nav">
-  <a href="/" class="active"><i class="fas fa-home"></i>홈</a>
+  <a href="/home" class="active"><i class="fas fa-home"></i>홈</a>
   <a href="/stations"><i class="fas fa-gas-pump"></i>주유소</a>
   <a href="/my-coupons"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
   <a href="/mypage"><i class="fas fa-user"></i>마이</a>
@@ -159,7 +159,7 @@ export function stationListPage(): string {
   <div id="list" class="p-4 space-y-3"></div>
 </div>
 <nav class="bottom-nav">
-  <a href="/"><i class="fas fa-home"></i>홈</a>
+  <a href="/home"><i class="fas fa-home"></i>홈</a>
   <a href="/stations" class="active"><i class="fas fa-gas-pump"></i>주유소</a>
   <a href="/my-coupons"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
   <a href="/mypage"><i class="fas fa-user"></i>마이</a>
@@ -240,7 +240,7 @@ export function myCouponsPage(): string {
   <div id="content" class="p-4"><div class="card text-center py-12"><i class="fas fa-spinner fa-spin text-green-400 text-2xl"></i></div></div>
 </div>
 <nav class="bottom-nav">
-  <a href="/"><i class="fas fa-home"></i>홈</a>
+  <a href="/home"><i class="fas fa-home"></i>홈</a>
   <a href="/stations"><i class="fas fa-gas-pump"></i>주유소</a>
   <a href="/my-coupons" class="active"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
   <a href="/mypage"><i class="fas fa-user"></i>마이</a>
@@ -348,7 +348,7 @@ export function myPage(): string {
   </div>
 </div>
 <nav class="bottom-nav">
-  <a href="/"><i class="fas fa-home"></i>홈</a>
+  <a href="/home"><i class="fas fa-home"></i>홈</a>
   <a href="/stations"><i class="fas fa-gas-pump"></i>주유소</a>
   <a href="/my-coupons"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
   <a href="/mypage" class="active"><i class="fas fa-user"></i>마이</a>

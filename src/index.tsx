@@ -11,6 +11,9 @@ import couponRoutes from './routes/coupons'
 import adminRoutes from './routes/admin'
 import userRoutes from './routes/user'
 
+// HTML 페이지 - 랜딩
+import { landingPage, termsPage, privacyPage } from './pages/landing'
+
 // HTML 페이지 - 고객
 import {
   customerHomePage, loginPage, registerPage, stationListPage, stationDetailPage,
@@ -51,8 +54,13 @@ app.route('/api', couponRoutes)
 // 헬스체크
 app.get('/api/health', (c) => c.json({ status: 'ok', service: 'EV-Wash', version: '2.0.0' }))
 
+// ============ 랜딩 / 법적 페이지 ============
+app.get('/', (c) => c.html(landingPage()))
+app.get('/terms', (c) => c.html(termsPage()))
+app.get('/privacy', (c) => c.html(privacyPage()))
+
 // ============ 고객 HTML 페이지 ============
-app.get('/', (c) => c.html(customerHomePage()))
+app.get('/home', (c) => c.html(customerHomePage()))
 app.get('/login', (c) => c.html(loginPage()))
 app.get('/register', (c) => c.html(registerPage()))
 app.get('/stations', (c) => c.html(stationListPage()))

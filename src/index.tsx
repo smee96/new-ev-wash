@@ -61,7 +61,7 @@ app.get('/privacy', (c) => c.html(privacyPage()))
 
 // ============ 고객 HTML 페이지 ============
 app.get('/home', (c) => c.html(customerHomePage()))
-app.get('/login', (c) => c.html(loginPage()))
+app.get('/login', (c) => c.html(loginPage(c.env.KAKAO_CLIENT_ID || '', c.env.NAVER_CLIENT_ID || '')))
 app.get('/register', (c) => c.html(registerPage()))
 app.get('/stations', (c) => c.html(stationListPage()))
 app.get('/stations/:id', (c) => c.html(stationDetailPage()))
@@ -73,7 +73,7 @@ app.get('/payment/fail', (c) => c.html(paymentFailPage()))
 
 // ============ 사장님 HTML 페이지 ============
 app.get('/owner', (c) => c.html(ownerDashboardPage()))
-app.get('/owner/login', (c) => c.html(ownerLoginPage()))
+app.get('/owner/login', (c) => c.html(ownerLoginPage(c.env.KAKAO_CLIENT_ID || '', c.env.NAVER_CLIENT_ID || '')))
 app.get('/owner/apply', (c) => c.html(ownerApplyPage()))
 app.get('/owner/stations/:id', (c) => c.html(ownerStationPage()))
 

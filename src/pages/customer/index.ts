@@ -1,7 +1,7 @@
 // 고객 페이지들 - EV-Wash
 import { htmlPage } from '../layout'
 
-export function loginPage(): string {
+export function loginPage(kakaoClientId = '', naverClientId = ''): string {
   return htmlPage('로그인', `
 <div class="min-h-screen px-5 py-10 flex flex-col">
   <div class="text-center mb-8">
@@ -25,6 +25,8 @@ export function loginPage(): string {
   </div>
 </div>
 <script>
+const KAKAO_CLIENT_ID = '${kakaoClientId}';
+const NAVER_CLIENT_ID = '${naverClientId}';
 async function doLogin(e) {
   e.preventDefault();
   const btn = document.getElementById('loginBtn');
@@ -40,8 +42,10 @@ async function doLogin(e) {
 function socialLogin(provider) {
   const redirect = encodeURIComponent(location.origin + '/api/auth/' + provider + '/callback');
   const url = provider === 'kakao'
-    ? 'https://kauth.kakao.com/oauth/authorize?client_id=KAKAO_PLACEHOLDER&redirect_uri=' + redirect + '&response_type=code'
-    : 'https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=NAVER_PLACEHOLDER&redirect_uri=' + redirect + '&state=' + Math.random().toString(36).slice(2);
+    ? 'https://kauth.kakao.com/oauth/authorize?client_id=' + KAKAO_CLIENT_ID + '&redirect_uri=' + redirect + '&response_type=code'
+    : 'https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=' + NAVER_CLIENT_ID + '&redirect_uri=' + redirect + '&state=' + Math.random().toString(36).slice(2);
+  if (!KAKAO_CLIENT_ID && provider === 'kakao') { showToast('카카오 로그인이 준비되지 않았습니다.', 'error'); return; }
+  if (!NAVER_CLIENT_ID && provider === 'naver') { showToast('네이버 로그인이 준비되지 않았습니다.', 'error'); return; }
   window.open(url, 'social_login', 'width=520,height=620');
   window.addEventListener('message', e => { if (e.data?.type === 'social_login') { setUser(e.data.token, e.data.user); window.location.href = e.data.user.userType === 'station_owner' ? '/owner' : '/home'; } }, { once: true });
 }
@@ -56,10 +60,17 @@ export function registerPage(): string {
   <h1 class="text-2xl font-bold text-gray-800 mb-6">회원가입</h1>
   <form onsubmit="doRegister(event)" class="space-y-4">
     <div><label class="text-xs text-gray-500 mb-1 block">회원 유형</label>
-      <select id="userType" class="input"><option value="customer">일반 고객</option><option value="station_owner">주유소 사장님</option></select></div>
+      <select id="userType" class="input" onchange="onUserTypeChange(this.value)">
+        <option value="customer">일반 고객</option>
+        <option value="station_owner">주유소 사장님</option>
+      </select>
+    </div>
     <input id="name" type="text" placeholder="이름" class="input" required>
     <input id="email" type="email" placeholder="이메일" class="input" required>
-    <input id="phone" type="tel" placeholder="휴대폰 번호 (선택)" class="input">
+    <div id="phoneWrapper">
+      <input id="phone" type="tel" placeholder="휴대폰 번호 (선택)" class="input">
+      <p id="phoneHint" class="text-xs text-gray-400 mt-1"></p>
+    </div>
     <input id="pw" type="password" placeholder="비밀번호 (8자 이상)" class="input" required minlength="8">
     <input id="pw2" type="password" placeholder="비밀번호 확인" class="input" required>
     <button type="submit" class="btn btn-primary">가입하기</button>
@@ -67,11 +78,38 @@ export function registerPage(): string {
   <p class="text-center text-sm text-gray-400 mt-4">이미 계정이 있으신가요? <a href="/login" class="ev-green font-semibold">로그인</a></p>
 </div>
 <script>
+function onUserTypeChange(type) {
+  const phoneInput = document.getElementById('phone');
+  const phoneHint = document.getElementById('phoneHint');
+  if (type === 'station_owner') {
+    phoneInput.placeholder = '휴대폰 번호 (필수)';
+    phoneInput.required = true;
+    phoneHint.textContent = '※ 사장님 계정은 전화번호가 필수입니다.';
+    phoneHint.className = 'text-xs text-red-500 mt-1';
+  } else {
+    phoneInput.placeholder = '휴대폰 번호 (선택)';
+    phoneInput.required = false;
+    phoneHint.textContent = '';
+  }
+}
 async function doRegister(e) {
   e.preventDefault();
   if (document.getElementById('pw').value !== document.getElementById('pw2').value) return showToast('비밀번호가 일치하지 않습니다.', 'error');
+  const userType = document.getElementById('userType').value;
+  const phone = document.getElementById('phone').value.trim();
+  if (userType === 'station_owner' && !phone) {
+    showToast('사장님 계정은 전화번호를 입력해주세요.', 'error');
+    document.getElementById('phone').focus();
+    return;
+  }
   try {
-    const r = await API.post('/auth/register', { name: document.getElementById('name').value, email: document.getElementById('email').value, phone: document.getElementById('phone').value || undefined, password: document.getElementById('pw').value, userType: document.getElementById('userType').value });
+    const r = await API.post('/auth/register', {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      phone: phone || undefined,
+      password: document.getElementById('pw').value,
+      userType
+    });
     setUser(r.token, r.user);
     showToast('가입되었습니다!');
     setTimeout(() => window.location.href = r.user.userType === 'station_owner' ? '/owner' : '/home', 800);

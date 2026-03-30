@@ -18,6 +18,10 @@ auth.post('/register', async (c) => {
   if (!['customer', 'station_owner'].includes(userType || 'customer')) {
     return c.json({ error: '잘못된 회원 유형입니다.' }, 400)
   }
+  // 주유소 사장님은 전화번호 필수
+  if ((userType || 'customer') === 'station_owner' && !phone) {
+    return c.json({ error: '주유소 사장님은 전화번호를 입력해주세요.' }, 400)
+  }
 
   const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
   if (existing) {

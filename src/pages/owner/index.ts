@@ -1,7 +1,7 @@
 // 사장님 페이지들 - EV-Wash
 import { htmlPage } from '../layout'
 
-export function ownerLoginPage(): string {
+export function ownerLoginPage(kakaoClientId = '', naverClientId = ''): string {
   return htmlPage('사장님 로그인', `
 <div class="min-h-screen px-5 py-10 flex flex-col">
   <div class="text-center mb-8">
@@ -22,6 +22,8 @@ export function ownerLoginPage(): string {
   <p class="text-center text-sm text-gray-400 mt-6">계정이 없으신가요? <a href="/register" class="ev-green font-semibold">회원가입</a></p>
 </div>
 <script>
+const KAKAO_CLIENT_ID = '${kakaoClientId}';
+const NAVER_CLIENT_ID = '${naverClientId}';
 async function doLogin(e) {
   e.preventDefault();
   const btn=document.getElementById('btn'); btn.disabled=true; btn.textContent='로그인 중...';
@@ -32,8 +34,10 @@ async function doLogin(e) {
   } catch(e){showToast(e.message||'로그인 실패','error');btn.disabled=false;btn.textContent='로그인';}
 }
 function socialLogin(provider) {
+  if(!KAKAO_CLIENT_ID && provider==='kakao'){showToast('카카오 로그인이 준비되지 않았습니다.','error');return;}
+  if(!NAVER_CLIENT_ID && provider==='naver'){showToast('네이버 로그인이 준비되지 않았습니다.','error');return;}
   const redirect=encodeURIComponent(location.origin+'/api/auth/'+provider+'/callback');
-  const url=provider==='kakao'?'https://kauth.kakao.com/oauth/authorize?client_id=KAKAO_PLACEHOLDER&redirect_uri='+redirect+'&response_type=code':'https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id=NAVER_PLACEHOLDER&redirect_uri='+redirect+'&state='+Math.random().toString(36).slice(2);
+  const url=provider==='kakao'?'https://kauth.kakao.com/oauth/authorize?client_id='+KAKAO_CLIENT_ID+'&redirect_uri='+redirect+'&response_type=code':'https://nid.naver.com/oauth2.0/authorize?response_type=code&client_id='+NAVER_CLIENT_ID+'&redirect_uri='+redirect+'&state='+Math.random().toString(36).slice(2);
   window.open(url,'social_login','width=520,height=620');
   window.addEventListener('message',e=>{if(e.data?.type==='social_login'){if(e.data.user?.userType!=='station_owner'){showToast('사장님 계정으로 로그인해주세요.','error');return;}setUser(e.data.token,e.data.user);window.location.href='/owner';}},{once:true});
 }

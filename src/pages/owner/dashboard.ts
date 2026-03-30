@@ -31,38 +31,58 @@ window.addEventListener('DOMContentLoaded',async()=>{
 
 async function loadApplications() {
   try {
-    const r=await API.get('/stations/my-applications'); const apps=r.applications||[];
-    const pending=apps.filter(a=>a.status==='pending');
-    const rejected=apps.filter(a=>a.status==='rejected');
-    const approved=apps.filter(a=>a.status==='approved');
+    const r=await API.get('/stations/my-applications');
+    const apps=r.applications||[];
+    const pending=apps.filter(function(a){return a.status==='pending';});
+    const rejected=apps.filter(function(a){return a.status==='rejected';});
     const el=document.getElementById('applicationStatus');
+    const parts=[];
 
+    // 심사 중인 신청 표시
     if(pending.length){
-      // 심사 중
-      el.innerHTML='<div class="card" style="border-left:4px solid #f59e0b"><div class="flex items-center gap-3"><i class="fas fa-clock text-lg" style="color:#f59e0b"></i><div><p class="font-semibold" style="color:#1a202c">심사 중</p><p class="text-xs mt-0.5" style="color:#8e9ab4">'+pending[0].station_name+' · 1~2 영업일 소요</p></div></div></div>';
-    } else if(rejected.length && !approved.length){
-      // 반려됨 (승인된 주유소 없는 경우) - 반려 상세 표시
-      const rejectedList = rejected.map(function(a){
-        return '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:12px;padding:12px;margin-bottom:8px">'
-          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px">'
+      const pList=pending.map(function(a){
+        return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid #fef3c7">'
+          +'<i class="fas fa-clock" style="color:#f59e0b;font-size:14px;flex-shrink:0"></i>'
+          +'<div><p style="font-size:13px;font-weight:600;color:#1a202c;margin:0">'+a.station_name+'</p>'
+          +'<p style="font-size:11px;color:#8e9ab4;margin:2px 0 0">신청일: '+(a.created_at?a.created_at.slice(0,10):'-')+' · 1~2 영업일 소요</p>'
+          +'</div></div>';
+      }).join('');
+      parts.push('<div class="card" style="border-left:4px solid #f59e0b;margin-bottom:12px">'
+        +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">'
+        +'<i class="fas fa-hourglass-half" style="color:#f59e0b;font-size:16px"></i>'
+        +'<p style="font-weight:700;color:#92400e;margin:0">심사 중인 신청 ('+pending.length+'건)</p>'
+        +'</div>'+pList+'</div>');
+    }
+
+    // 반려된 신청 표시 (승인 여부와 무관하게 항상 표시)
+    if(rejected.length){
+      const rList=rejected.map(function(a){
+        return '<div style="background:#fff5f5;border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:8px">'
+          +'<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px">'
           +'<span style="font-weight:600;font-size:14px;color:#1a202c">'+a.station_name+'</span>'
-          +'<span style="font-size:11px;color:#c0c8d8">'+(a.created_at?a.created_at.slice(0,10):'')+'</span>'
+          +'<span style="font-size:11px;color:#c0c8d8">'+(a.created_at?a.created_at.slice(0,10):'-')+'</span>'
           +'</div>'
-          +'<p style="font-size:12px;color:#dc2626"><i class="fas fa-exclamation-circle" style="margin-right:4px"></i>'+(a.reject_reason||'반려 사유가 기록되지 않았습니다.')+'</p>'
+          +'<div style="display:flex;align-items:flex-start;gap:6px;margin-bottom:10px">'
+          +'<i class="fas fa-exclamation-circle" style="color:#dc2626;font-size:12px;margin-top:2px;flex-shrink:0"></i>'
+          +'<p style="font-size:12px;color:#dc2626;margin:0;line-height:1.5">'+(a.reject_reason||'반려 사유가 기록되지 않았습니다.')+'</p>'
+          +'</div>'
+          +'<a href="/owner/apply" style="display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#2563eb;text-decoration:none;padding:6px 12px;border:1px solid #bfdbfe;border-radius:8px;background:#eff6ff">'
+          +'<i class="fas fa-redo" style="font-size:11px"></i>재신청하기</a>'
           +'</div>';
       }).join('');
-      el.innerHTML='<div class="card" style="border-left:4px solid #ef4444">'
+      parts.push('<div class="card" style="border-left:4px solid #ef4444">'
         +'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">'
         +'<i class="fas fa-times-circle" style="color:#ef4444;font-size:18px"></i>'
-        +'<p style="font-weight:600;color:#ef4444">신청이 반려되었습니다</p>'
+        +'<p style="font-weight:700;color:#ef4444;margin:0">반려된 신청 ('+rejected.length+'건)</p>'
         +'</div>'
-        +'<div style="margin-bottom:12px">'+rejectedList+'</div>'
         +'<p style="font-size:12px;color:#8e9ab4;margin-bottom:12px">반려 사유를 확인하고 내용을 수정하여 재신청해주세요.</p>'
-        +'<a href="/owner/apply" class="btn btn-primary"><i class="fas fa-redo" style="margin-right:8px"></i>재신청하기</a>'
-        +'</div>';
+        +rList+'</div>');
     }
-    // 심사중/반려 아닌 경우 (승인됨 or 빈 경우) - applicationStatus 영역 비움
-  } catch {}
+
+    el.innerHTML=parts.join('');
+  } catch(err){
+    console.error('loadApplications error:', err);
+  }
 }
 
 async function loadStations() {

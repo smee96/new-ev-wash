@@ -546,21 +546,159 @@ async function showDetail(id) {
   try {
     const r = await API.get('/admin/stations/' + id);
     const s = r.station;
+    const washLabel = s.car_wash_type === 'automatic' ? '자동 세차기' : s.car_wash_type === 'self' ? '셀프 세차' : '자동+셀프';
+
+    // QR 이미지 Blob URL 미리 로드
+    const token = localStorage.getItem('ev_token');
+    const qrApiUrl = '/api/stations/my-stations/' + id + '/qr-image?token=' + encodeURIComponent(token);
+    let qrBlobUrl = '';
+    try {
+      const res = await fetch(qrApiUrl);
+      if (res.ok) qrBlobUrl = URL.createObjectURL(await res.blob());
+    } catch {}
+
     document.getElementById('modalContent').innerHTML = \`
-      <h3 class="font-bold text-lg text-gray-800 mb-4">\${s.station_name}</h3>
-      <div class="space-y-2 text-sm mb-4">
-        <div class="flex justify-between"><span class="text-gray-400">주소</span><span>\${s.address}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">전화</span><span>\${s.phone||'-'}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">사업자번호</span><span>\${s.business_reg_number}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">계좌</span><span>\${s.bank_name} \${s.account_number} (\${s.account_holder})</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">사장님</span><span>\${s.owner_name} (\${s.owner_email})</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">등록일</span><span>\${formatDate(s.created_at)}</span></div>
-        <div class="flex justify-between"><span class="text-gray-400">상태</span><span>\${s.is_closed?'폐업':s.is_active?'운영중':'비활성'}</span></div>
+      <!-- 주유소명 + 상태 -->
+      <div class="flex items-start justify-between mb-4">
+        <h3 class="font-bold text-lg text-gray-800 flex-1 mr-3">\${s.station_name}</h3>
+        \${s.is_closed ? '<span class="badge badge-red">폐업</span>' : s.is_active ? '<span class="badge badge-green">운영중</span>' : '<span class="badge badge-gray">비활성</span>'}
       </div>
-      \${!s.is_closed ? \`<button onclick="closeStation(\${s.id})" class="btn btn-danger mb-3">폐업 처리 (미사용 쿠폰 환불)</button>\` : ''}
-      <button onclick="closeStationModal()" class="btn btn-gray">닫기</button>
+
+      <!-- 기본 정보 -->
+      <div class="space-y-2 text-sm mb-4 bg-gray-50 rounded-xl p-3">
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">주소</span><span class="text-right text-gray-700">\${s.address}\${s.address_detail ? ' ' + s.address_detail : ''}</span></div>
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">전화</span><span class="text-gray-700">\${s.phone || '-'}</span></div>
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">세차유형</span><span class="text-gray-700">\${washLabel}</span></div>
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">사업자번호</span><span class="text-gray-700 font-mono">\${s.business_reg_number}</span></div>
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">정산계좌</span><span class="text-right text-gray-700">\${s.bank_name} \${s.account_number}<br><span class="text-xs text-gray-400">(\${s.account_holder})</span></span></div>
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">사장님</span><span class="text-right text-gray-700">\${s.owner_name}<br><span class="text-xs text-gray-400">\${s.owner_email || ''}</span></span></div>
+        <div class="flex justify-between gap-3"><span class="text-gray-400 flex-shrink-0">등록일</span><span class="text-gray-700">\${formatDate(s.created_at)}</span></div>
+      </div>
+
+      <!-- QR 코드 섹션 -->
+      <div class="bg-gray-50 rounded-xl p-3 mb-4">
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="font-semibold text-gray-700 text-sm"><i class="fas fa-qrcode text-green-400 mr-2"></i>QR 코드</h4>
+          <button onclick="printQR('\${id}', '\${s.station_name}', '\${s.address}')"
+            class="text-xs bg-green-500 text-white px-3 py-1.5 rounded-lg flex items-center gap-1.5 hover:bg-green-600">
+            <i class="fas fa-print"></i> 인쇄
+          </button>
+        </div>
+        \${qrBlobUrl ? \`
+          <div class="flex flex-col items-center">
+            <img src="\${qrBlobUrl}" alt="QR코드" width="180" height="180"
+              class="rounded-lg border border-gray-200 mb-2">
+            <p class="text-xs text-gray-300 break-all text-center">\${s.qr_code || ''}</p>
+          </div>
+        \` : '<p class="text-xs text-red-400 text-center py-3">QR 코드를 불러올 수 없습니다.</p>'}
+      </div>
+
+      <!-- 액션 버튼 -->
+      \${!s.is_closed ? \`<button onclick="closeStation(\${s.id})" class="btn btn-danger w-full mb-3"><i class="fas fa-store-slash mr-2"></i>폐업 처리 (미사용 쿠폰 환불)</button>\` : ''}
+      <button onclick="closeStationModal()" class="btn btn-gray w-full">닫기</button>
     \`;
-  } catch {}
+  } catch(e) {
+    document.getElementById('modalContent').innerHTML = '<p class="text-red-400 text-center py-4">불러올 수 없습니다: ' + (e.message||'') + '</p>';
+  }
+}
+
+// QR 인쇄 전용 팝업 (코팅 인쇄용 고품질)
+async function printQR(stationId, stationName, address) {
+  const token = localStorage.getItem('ev_token');
+  const qrApiUrl = '/api/stations/my-stations/' + stationId + '/qr-image?token=' + encodeURIComponent(token);
+
+  try {
+    const res = await fetch(qrApiUrl);
+    if (!res.ok) throw new Error('QR 이미지 로드 실패');
+    const blob = await res.blob();
+    const qrUrl = URL.createObjectURL(blob);
+
+    const win = window.open('', '_blank', 'width=600,height=700');
+    win.document.write(\`<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>QR 코드 인쇄 - \${stationName}</title>
+  <style>
+    * { margin:0; padding:0; box-sizing:border-box; }
+    body { font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', sans-serif; background:#fff; }
+    .print-page {
+      width: 148mm; /* A5 가로 */
+      min-height: 105mm;
+      margin: 0 auto;
+      padding: 10mm;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      border: 2px solid #e5e7eb;
+      border-radius: 8px;
+      margin-top: 10mm;
+    }
+    .logo { font-size: 28px; margin-bottom: 4px; }
+    .brand { font-size: 18px; font-weight: 800; color: #10b981; margin-bottom: 2px; }
+    .station-name { font-size: 22px; font-weight: 700; color: #1f2937; margin: 8px 0 2px; }
+    .address { font-size: 11px; color: #6b7280; margin-bottom: 12px; }
+    .qr-wrap { background:#f9fafb; padding:12px; border-radius:12px; margin-bottom:12px; border:1px solid #e5e7eb; }
+    .qr-wrap img { width:200px; height:200px; display:block; }
+    .guide { font-size: 13px; color: #374151; font-weight: 600; margin-bottom: 4px; }
+    .guide-sub { font-size: 11px; color: #9ca3af; margin-bottom: 12px; }
+    .divider { width:100%; border-top:1px dashed #d1d5db; margin:8px 0; }
+    .steps { display:flex; gap:16px; justify-content:center; margin-top:6px; }
+    .step { display:flex; flex-direction:column; align-items:center; gap:4px; }
+    .step-num { width:22px; height:22px; background:#10b981; color:#fff; border-radius:50%; font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; }
+    .step-text { font-size:10px; color:#6b7280; text-align:center; max-width:60px; line-height:1.3; }
+    .footer { font-size:10px; color:#d1d5db; margin-top:10px; }
+    @media print {
+      body { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+      .no-print { display:none; }
+      .print-page { border:2px solid #e5e7eb !important; margin-top:0; }
+    }
+  </style>
+</head>
+<body>
+<div class="no-print" style="text-align:center;padding:12px;background:#f0fdf4;border-bottom:1px solid #a7f3d0">
+  <button onclick="window.print()" style="background:#10b981;color:#fff;border:none;padding:8px 24px;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;margin-right:8px">
+    🖨️ 인쇄하기
+  </button>
+  <span style="font-size:12px;color:#6b7280">인쇄 후 코팅하여 주유소에 부착해주세요</span>
+</div>
+<div class="print-page">
+  <div class="logo">⚡</div>
+  <div class="brand">EV-Wash</div>
+  <div class="station-name">\${stationName}</div>
+  <div class="address">\${address}</div>
+  <div class="qr-wrap">
+    <img src="\${qrUrl}" alt="QR코드">
+  </div>
+  <div class="guide">세차 완료 후 QR 코드를 스캔해주세요</div>
+  <div class="guide-sub">EV-Wash 앱 → 내 쿠폰 → QR 스캔</div>
+  <div class="divider"></div>
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div class="step-text">앱 실행</div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div class="step-text">내 쿠폰 선택</div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div class="step-text">QR 스캔</div>
+    </div>
+    <div class="step">
+      <div class="step-num">4</div>
+      <div class="step-text">사용 완료</div>
+    </div>
+  </div>
+  <div class="footer">www.ev-wash.com</div>
+</div>
+</body>
+</html>\`);
+    win.document.close();
+    setTimeout(() => URL.revokeObjectURL(qrUrl), 30000);
+  } catch(e) { showToast('인쇄 준비 실패: ' + e.message, 'error'); }
 }
 
 async function closeStation(id) {

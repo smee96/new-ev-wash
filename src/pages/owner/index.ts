@@ -420,9 +420,19 @@ async function loadQR() {
     const r = await API.get('/stations/my-stations/' + stationId + '/qr');
     if (!r || !r.qr_code) throw new Error('QR 코드 데이터가 없습니다.');
 
-    // Google Charts QR API - 가장 신뢰성 높은 방식
-    const qrImgSrc = 'https://chart.googleapis.com/chart?chs=300x300&cht=qr&chl='
-      + encodeURIComponent(r.qr_code) + '&choe=UTF-8&chld=M|2';
+    // 서버에서 직접 SVG 생성 (토큰 인증 포함)
+    const token = localStorage.getItem('ev_token');
+    const qrApiUrl = '/api/stations/my-stations/' + stationId + '/qr-image?token=' + encodeURIComponent(token);
+
+    // Blob URL로 변환 (img src에 토큰 노출 방지 + CORS 없음)
+    let qrBlobUrl = qrApiUrl; // 기본값: 직접 URL
+    try {
+      const res = await fetch(qrApiUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        qrBlobUrl = URL.createObjectURL(blob);
+      }
+    } catch {}
 
     el.innerHTML = \`
       <div class="card text-center py-6">
@@ -432,14 +442,13 @@ async function loadQR() {
         <h3 class="font-bold text-gray-800 text-lg mb-1">\${r.station_name}</h3>
         <p class="text-xs text-gray-400 mb-6">고객이 세차 완료 후 이 QR을 스캔합니다</p>
         <div class="bg-white rounded-2xl p-4 inline-block shadow-sm border border-gray-100 mb-5">
-          <img id="qrImg" src="\${qrImgSrc}" alt="QR코드"
-            width="220" height="220"
-            style="display:block;image-rendering:pixelated"
-            onerror="this.outerHTML='<div class=\\'text-red-400 text-sm p-4\\'>QR 이미지 로드 실패</div>'">
+          <img id="qrImg" src="\${qrBlobUrl}" alt="QR코드"
+            width="240" height="240"
+            style="display:block">
         </div>
         <p class="text-xs text-gray-300 break-all px-4 mb-5">\${r.qr_code}</p>
         <div class="flex gap-3">
-          <button onclick="downloadQR('\${qrImgSrc}', '\${r.station_name}')" class="btn btn-primary flex-1">
+          <button onclick="downloadQR('\${qrBlobUrl}', '\${r.station_name}')" class="btn btn-primary flex-1">
             <i class="fas fa-download mr-2"></i>이미지 저장
           </button>
           <button onclick="copyQR('\${r.qr_code}')" class="btn btn-outline flex-1">

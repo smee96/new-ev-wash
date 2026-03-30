@@ -3,6 +3,7 @@ import { Hono } from 'hono'
 import { authMiddleware, requireRole } from '../middleware/auth'
 import { generateId } from '../utils/jwt'
 import type { Env, JWTPayload } from '../types'
+import QRCode from 'qrcode'
 
 type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
 
@@ -205,46 +206,50 @@ stations.get('/my-stations/:id/qr', authMiddleware, requireRole('station_owner')
   return c.json({ qr_code: station.qr_code, station_name: station.station_name })
 })
 
-// QR 코드 이미지 (PNG) - 쿼리스트링 토큰 인증 지원
+// QR 코드 SVG 이미지 - 쿼리스트링 토큰 or Authorization 헤더 둘 다 지원
+// 사장님용: owner_id 검증 / 관리자용: admin이면 모든 주유소 가능
 stations.get('/my-stations/:id/qr-image', async (c) => {
-  // 쿼리스트링 토큰 또는 Authorization 헤더 둘 다 허용
   const token = c.req.query('token') || c.req.header('Authorization')?.replace('Bearer ', '')
   if (!token) return c.json({ error: '인증이 필요합니다.' }, 401)
 
   const { verifyJWT } = await import('../utils/jwt')
   const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev-secret-key')
-  if (!payload || payload.userType !== 'station_owner') {
+  if (!payload) return c.json({ error: '유효하지 않은 토큰입니다.' }, 401)
+
+  const stationId = c.req.param('id')
+  let station: any
+
+  if (payload.userType === 'admin') {
+    station = await c.env.DB.prepare(
+      `SELECT qr_code, station_name FROM stations WHERE id = ?`
+    ).bind(stationId).first<any>()
+  } else if (payload.userType === 'station_owner') {
+    station = await c.env.DB.prepare(
+      `SELECT qr_code, station_name FROM stations WHERE id = ? AND owner_id = ?`
+    ).bind(stationId, payload.userId).first<any>()
+  } else {
     return c.json({ error: '권한이 없습니다.' }, 403)
   }
 
-  const stationId = c.req.param('id')
-  const station = await c.env.DB.prepare(
-    `SELECT qr_code, station_name FROM stations WHERE id = ? AND owner_id = ?`
-  ).bind(stationId, payload.userId).first<any>()
   if (!station) return c.json({ error: '주유소를 찾을 수 없습니다.' }, 404)
 
-  // QR 코드를 순수 JS로 생성 (외부 라이브러리 없이)
-  const qrSvg = generateQRSvg(station.qr_code)
+  // qrcode 패키지로 SVG 직접 생성
+  const svgString = await QRCode.toString(station.qr_code, {
+    type: 'svg',
+    width: 300,
+    margin: 2,
+    color: { dark: '#1f2937', light: '#ffffff' },
+    errorCorrectionLevel: 'M',
+  })
 
-  return new Response(qrSvg, {
+  return new Response(svgString, {
     headers: {
       'Content-Type': 'image/svg+xml',
       'Cache-Control': 'private, max-age=3600',
+      'X-Station-Name': encodeURIComponent(station.station_name),
     },
   })
 })
-
-// 순수 JS QR 코드 SVG 생성 (Reed-Solomon, 외부 라이브러리 없이)
-// qr-code 문자열을 Google Chart API URL로 처리 (단순 redirect 방식)
-function generateQRSvg(text: string): string {
-  // QR 모듈을 직접 생성하는 대신, SVG placeholder + 텍스트로 표현
-  // 실제 QR은 클라이언트에서 Google API로 렌더링
-  const encoded = encodeURIComponent(text)
-  // Google Charts QR API를 서버에서 프록시
-  return `<svg xmlns="http://www.w3.org/2000/svg" width="220" height="220">
-    <image href="https://chart.googleapis.com/chart?chs=220x220&cht=qr&chl=${encoded}&choe=UTF-8" width="220" height="220"/>
-  </svg>`
-}
 
 // 쿠폰 사용 처리 (QR 스캔 결과)
 stations.post('/my-stations/:id/use-coupon', authMiddleware, requireRole('station_owner', 'admin'), async (c) => {

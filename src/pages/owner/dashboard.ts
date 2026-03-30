@@ -119,7 +119,7 @@ async function loadStations() {
           +'</a>'
           +(canDelete
             ?'<div style="margin-top:10px;padding-top:10px;border-top:1px solid #f4f7fb">'
-            +'<button onclick="deleteStation('+s.id+',\''+s.station_name+'\')" '
+            +'<button onclick="deleteStation('+s.id+')" '
             +'style="width:100%;display:flex;align-items:center;justify-content:center;gap:6px;font-size:12px;font-weight:600;color:#ef4444;background:#fff5f5;border:1px solid #fecaca;border-radius:8px;padding:8px 0;cursor:pointer">'
             +'<i class="fas fa-trash" style="font-size:11px"></i>주유소 삭제</button>'
             +'</div>'
@@ -131,30 +131,32 @@ async function loadStations() {
 }
 function deleteApplication(id) {
   showDialog({
-    icon:'🗑️', title:'신청 삭제',
+    icon:'', title:'신청 삭제',
     msg:'반려된 신청 내역을 삭제하시겠습니까?',
     confirmText:'삭제', confirmClass:'btn-danger',
     onConfirm: async function() {
       try {
         await API.delete('/stations/my-applications/'+id);
         showToast('삭제되었습니다.');
-        const el=document.getElementById('app-item-'+id);
+        var el=document.getElementById('app-item-'+id);
         if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(function(){loadApplications();},300); }
       } catch(e){ showToast(e.message||'삭제 실패','error'); }
     }
   });
 }
 
-function deleteStation(id, name) {
+function deleteStation(id) {
+  var nameEl=document.querySelector('#station-item-'+id+' h3');
+  var name=nameEl?nameEl.textContent:'이 주유소';
   showDialog({
-    icon:'⚠️', title:'주유소 삭제',
-    msg:'<b>'+name+'</b>을(를) 삭제하시겠습니까?<br><span style="font-size:12px;color:#8e9ab4">등록된 쿠폰도 함께 삭제됩니다.</span>',
+    icon:'', title:'주유소 삭제',
+    msg:name+' 주유소를 삭제하시겠습니까?<br><span style="font-size:12px;color:#8e9ab4">등록된 쿠폰도 함께 삭제됩니다.</span>',
     confirmText:'삭제', confirmClass:'btn-danger',
     onConfirm: async function() {
       try {
         await API.delete('/stations/my-stations/'+id);
         showToast('주유소가 삭제되었습니다.');
-        const el=document.getElementById('station-item-'+id);
+        var el=document.getElementById('station-item-'+id);
         if(el){ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(function(){loadStations();},300); }
       } catch(e){ showToast(e.message||'삭제 실패','error'); }
     }

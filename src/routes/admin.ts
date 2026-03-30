@@ -2,7 +2,7 @@
 import { Hono } from 'hono'
 import { authMiddleware, requireRole } from '../middleware/auth'
 import { sendEmail, applicationApprovedEmail, applicationRejectedEmail, stationClosedRefundEmail } from '../utils/email'
-import { generateId } from '../utils/jwt'
+import { generateId, kstNow } from '../utils/jwt'
 import type { Env, JWTPayload } from '../types'
 
 type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
@@ -103,7 +103,7 @@ admin.post('/applications/:id/approve', async (c) => {
 
   // 신청 상태 업데이트
   await c.env.DB.prepare(
-    `UPDATE station_applications SET status = 'approved', reviewed_by = ?, reviewed_at = datetime('now')
+    `UPDATE station_applications SET status = 'approved', reviewed_by = ?, reviewed_at = ${kstNow()}
      WHERE id = ?`
   ).bind(adminUser.userId, id).run()
 
@@ -144,7 +144,7 @@ admin.post('/applications/:id/reject', async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE station_applications SET status = 'rejected', reject_reason = ?,
-     reviewed_by = ?, reviewed_at = datetime('now') WHERE id = ?`
+     reviewed_by = ?, reviewed_at = ${kstNow()} WHERE id = ?`
   ).bind(reason, adminUser.userId, id).run()
 
   if (app.owner_email) {
@@ -299,7 +299,7 @@ admin.post('/stations/:id/close', async (c) => {
           payment_method, toss_cancel_key, toss_error_code, toss_error_message,
           reason, admin_note, processed_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'force_closure', ?, ?, ?, ?,
-                 '주유소 폐업 강제 환불', ?, datetime('now'), datetime('now'))`
+                 '주유소 폐업 강제 환불', ?, ${kstNow()}, ${kstNow()})`
       ).bind(
         purchase.id, purchase.user_id, stationId,
         purchase.remaining_uses, refundAmount, pricePerUse,
@@ -320,8 +320,8 @@ admin.post('/stations/:id/close', async (c) => {
            refunded_uses = refunded_uses + ?,
            toss_total_cancelled = toss_total_cancelled + ?,
            force_refunded = 1,
-           refunded_at = datetime('now'),
-           updated_at = datetime('now')
+           refunded_at = ${kstNow()},
+           updated_at = ${kstNow()}
          WHERE id = ?`
       ).bind(
         tossOk ? 'refunded' : purchase.status,  // 실패 시 상태 유지
@@ -337,7 +337,7 @@ admin.post('/stations/:id/close', async (c) => {
   // 주유소 폐업 처리 + 쿠폰 비활성화
   dbOps.push(
     c.env.DB.prepare(
-      `UPDATE stations SET is_closed = 1, is_active = 0, closed_at = datetime('now') WHERE id = ?`
+      `UPDATE stations SET is_closed = 1, is_active = 0, closed_at = ${kstNow()} WHERE id = ?`
     ).bind(stationId),
     c.env.DB.prepare(
       `UPDATE coupons SET is_active = 0 WHERE station_id = ?`
@@ -503,7 +503,7 @@ admin.post('/settlements/process', async (c) => {
     ops.push(
       c.env.DB.prepare(
         `INSERT INTO settlements (station_id, settlement_date, gross_amount, platform_fee_rate, platform_fee, net_amount, usage_count, status, processed_at, processed_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', datetime('now'), ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ${kstNow()}, ?)`
       ).bind(item.station_id, targetDate, item.gross, feeRate, fee, net, item.cnt, adminUser.userId),
       c.env.DB.prepare(
         `UPDATE coupon_usages SET settled = 1 WHERE station_id = ? AND date(used_at) = ? AND settled = 0`
@@ -560,7 +560,7 @@ admin.put('/settings/:key', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO platform_settings (key, value, updated_at) VALUES (?, ?, datetime('now'))
+    `INSERT INTO platform_settings (key, value, updated_at) VALUES (?, ?, ${kstNow()})
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
   ).bind(key, String(value)).run()
 

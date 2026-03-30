@@ -120,3 +120,20 @@ export async function verifyPassword(password: string, stored: string): Promise<
 export function generateId(): string {
   return crypto.randomUUID()
 }
+
+// KST (UTC+9) 현재 시각 → 'YYYY-MM-DD HH:MM:SS'
+export function kstNow(): string {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000)
+  return d.toISOString().replace('T', ' ').substring(0, 19)
+}
+
+// KST 오늘 날짜 → 'YYYY-MM-DD'
+export function kstDate(): string {
+  return kstNow().substring(0, 10)
+}
+
+// KST 어제 날짜 → 'YYYY-MM-DD'
+export function kstYesterday(): string {
+  const d = new Date(Date.now() + 9 * 60 * 60 * 1000 - 86400000)
+  return d.toISOString().substring(0, 10)
+}

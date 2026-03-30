@@ -1,7 +1,7 @@
 // 랜딩 페이지 / 이용약관 / 개인정보처리방침
 
 // ============================================================
-// 공통 레이아웃 (랜딩용 - COMMON_JS 없는 심플 버전)
+// 공통 레이아웃 (랜딩용)
 // ============================================================
 function landingHtml(title: string, body: string): string {
   return `<!DOCTYPE html>
@@ -15,7 +15,7 @@ function landingHtml(title: string, body: string): string {
 <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css" rel="stylesheet">
 <style>
 * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
-body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #000; color: #fff; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0a1628; color: #fff; }
 </style>
 </head>
 <body>
@@ -38,11 +38,15 @@ html, body { height: 100%; }
   flex-direction: column;
   align-items: center;
   justify-content: space-between;
-  background: #000;
+  background: #0a1628;
   padding: 0 24px;
   padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  position: relative;
+  overflow: hidden;
 }
+
+
 
 /* 로고 영역 */
 .logo-wrap {
@@ -52,41 +56,72 @@ html, body { height: 100%; }
   align-items: center;
   justify-content: center;
   gap: 0;
+  position: relative;
+  z-index: 1;
 }
+
+.logo-badge { display: none; }
 
 .logo-icon {
-  font-size: 52px;
+  font-size: 56px;
   line-height: 1;
-  margin-bottom: 24px;
-  animation: pulse 2.4s ease-in-out infinite;
+  margin-bottom: 20px;
+  animation: float 3s ease-in-out infinite;
+  filter: drop-shadow(0 0 24px rgba(132,204,22,.5));
 }
 
-@keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.8; transform: scale(0.96); }
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
 }
 
 .logo-text {
-  font-size: clamp(52px, 18vw, 96px);
+  font-size: clamp(52px, 18vw, 92px);
   font-weight: 900;
   letter-spacing: -0.04em;
   line-height: 1;
-  background: linear-gradient(135deg, #10b981 0%, #34d399 40%, #6ee7b7 100%);
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  background-clip: text;
+  color: #bef264;
   text-align: center;
 }
 
 .logo-sub {
-  margin-top: 14px;
-  font-size: 13px;
+  margin-top: 16px;
+  font-size: 12px;
   font-weight: 400;
-  letter-spacing: 0.22em;
-  color: rgba(255,255,255,0.3);
+  letter-spacing: 0.2em;
+  color: rgba(255,255,255,0.35);
   text-transform: uppercase;
   text-align: center;
 }
+
+.logo-desc {
+  margin-top: 20px;
+  font-size: 14px;
+  color: rgba(255,255,255,0.5);
+  text-align: center;
+  line-height: 1.7;
+}
+
+/* 피처 뱃지 */
+.features {
+  display: flex;
+  gap: 8px;
+  margin-top: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.feat-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 100px;
+  padding: 6px 12px;
+  font-size: 12px;
+  color: rgba(255,255,255,.6);
+}
+.feat-chip i { color: #84cc16; font-size: 11px; }
 
 /* 하단 영역 */
 .bottom-area {
@@ -97,43 +132,46 @@ html, body { height: 100%; }
   flex-direction: column;
   align-items: center;
   gap: 0;
+  position: relative;
+  z-index: 1;
 }
 
 .start-btn {
   display: block;
   width: 100%;
   padding: 17px;
-  background: #10b981;
-  color: #fff;
+  background: #bef264;
+  color: #0a1628;
   border: none;
   border-radius: 14px;
   font-size: 17px;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.02em;
   cursor: pointer;
   text-decoration: none;
   text-align: center;
-  transition: background 0.15s, transform 0.1s;
+  transition: all 0.15s;
   -webkit-font-smoothing: antialiased;
+  box-shadow: 0 4px 20px rgba(132,204,22,.35);
 }
 
 .start-btn:active {
-  background: #059669;
   transform: scale(0.98);
+  box-shadow: 0 2px 10px rgba(132,204,22,.2);
 }
 
 /* 푸터 */
 .footer {
   width: 100%;
   max-width: 480px;
-  padding: 28px 0 0;
-  border-top: 1px solid rgba(255,255,255,0.07);
-  margin-top: 28px;
+  padding: 24px 0 0;
+  border-top: 1px solid rgba(255,255,255,.07);
+  margin-top: 24px;
 }
 
 .footer-company {
   font-size: 11px;
-  color: rgba(255,255,255,0.25);
+  color: rgba(255,255,255,0.2);
   line-height: 1.8;
   text-align: center;
 }
@@ -149,7 +187,7 @@ html, body { height: 100%; }
   font-size: 11px;
   color: rgba(255,255,255,0.3);
   text-decoration: none;
-  border-bottom: 1px solid rgba(255,255,255,0.15);
+  border-bottom: 1px solid rgba(255,255,255,.15);
   padding-bottom: 1px;
   transition: color 0.15s;
 }
@@ -164,6 +202,12 @@ html, body { height: 100%; }
     <div class="logo-icon">⚡</div>
     <div class="logo-text">EV-WASH</div>
     <div class="logo-sub">Electric Vehicle Car Wash</div>
+    <p class="logo-desc">전국 주유소 세차 쿠폰을<br>간편하게 구매하고 사용하세요</p>
+    <div class="features">
+      <span class="feat-chip"><i class="fas fa-check-circle"></i> 간편 구매</span>
+      <span class="feat-chip"><i class="fas fa-check-circle"></i> QR 인증</span>
+      <span class="feat-chip"><i class="fas fa-check-circle"></i> 즉시 환불</span>
+    </div>
   </div>
 
   <div class="bottom-area">
@@ -187,12 +231,11 @@ html, body { height: 100%; }
 }
 
 // ============================================================
-// 서비스 이용약관
+// 공통 문서 페이지 스타일
 // ============================================================
-export function termsPage(): string {
-  return landingHtml('서비스 이용약관 - EV-Wash', `
+const DOC_STYLE = `
 <style>
-body { background: #fff; color: #1e293b; }
+body { background: #f4f7fb; color: #1a202c; }
 .doc-wrap {
   max-width: 720px;
   margin: 0 auto;
@@ -202,38 +245,44 @@ body { background: #fff; color: #1e293b; }
   position: sticky;
   top: 0;
   background: #fff;
-  border-bottom: 1px solid #e2e8f0;
+  border-bottom: 1px solid #eef1f7;
   padding: 16px 20px;
   display: flex;
   align-items: center;
   gap: 12px;
   z-index: 10;
   margin: 0 -20px;
+  box-shadow: 0 1px 4px rgba(10,22,40,.05);
 }
 .doc-header a {
-  color: #64748b;
+  color: #4a5568;
   text-decoration: none;
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
   display: flex;
   align-items: center;
   justify-content: center;
+  border-radius: 10px;
+  background: #f4f7fb;
 }
+.doc-header a:hover { background: #eef1f7; }
 .doc-header h1 {
   font-size: 16px;
   font-weight: 700;
-  color: #1e293b;
+  color: #0a1628;
 }
 .doc-content {
   padding-top: 28px;
 }
 .doc-content h2 {
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 700;
-  color: #10b981;
+  color: #1a2f5e;
   margin: 28px 0 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #f0fdf4;
+  padding: 8px 12px;
+  background: #f0ffd4;
+  border-left: 3px solid #84cc16;
+  border-radius: 0 8px 8px 0;
 }
 .doc-content h2:first-child {
   margin-top: 0;
@@ -241,7 +290,7 @@ body { background: #fff; color: #1e293b; }
 .doc-content p, .doc-content li {
   font-size: 14px;
   line-height: 1.8;
-  color: #475569;
+  color: #4a5568;
 }
 .doc-content ul, .doc-content ol {
   padding-left: 18px;
@@ -252,14 +301,47 @@ body { background: #fff; color: #1e293b; }
 }
 .doc-content .date {
   font-size: 13px;
-  color: #94a3b8;
+  color: #8e9ab4;
   margin-bottom: 24px;
 }
 .doc-content strong {
-  color: #1e293b;
+  color: #1a202c;
   font-weight: 600;
 }
+.info-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  margin: 10px 0;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.info-table th {
+  background: #1a2f5e;
+  padding: 10px 12px;
+  text-align: left;
+  font-weight: 600;
+  color: #fff;
+  border: none;
+  white-space: nowrap;
+}
+.info-table td {
+  padding: 10px 12px;
+  border-bottom: 1px solid #eef1f7;
+  color: #4a5568;
+  line-height: 1.6;
+  background: #fff;
+}
+.info-table tr:last-child td { border-bottom: none; }
 </style>
+`
+
+// ============================================================
+// 서비스 이용약관
+// ============================================================
+export function termsPage(): string {
+  return landingHtml('서비스 이용약관 - EV-Wash', `
+${DOC_STYLE}
 
 <div class="doc-wrap">
   <div class="doc-header">
@@ -377,7 +459,7 @@ body { background: #fff; color: #1e293b; }
     <h2>부칙</h2>
     <p>본 약관은 2025년 1월 1일부터 시행됩니다.</p>
     <br>
-    <p style="font-size:13px;color:#94a3b8;">문의: mobin_info@mobin-inc.com &nbsp;|&nbsp; (주)모빈</p>
+    <p style="font-size:13px;color:#8e9ab4;">문의: mobin_info@mobin-inc.com &nbsp;|&nbsp; (주)모빈</p>
   </div>
 </div>
 `)
@@ -388,85 +470,7 @@ body { background: #fff; color: #1e293b; }
 // ============================================================
 export function privacyPage(): string {
   return landingHtml('개인정보처리방침 - EV-Wash', `
-<style>
-body { background: #fff; color: #1e293b; }
-.doc-wrap {
-  max-width: 720px;
-  margin: 0 auto;
-  padding: 0 20px 60px;
-}
-.doc-header {
-  position: sticky;
-  top: 0;
-  background: #fff;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 16px 20px;
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  z-index: 10;
-  margin: 0 -20px;
-}
-.doc-header a {
-  color: #64748b;
-  text-decoration: none;
-  width: 32px;
-  height: 32px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.doc-header h1 {
-  font-size: 16px;
-  font-weight: 700;
-  color: #1e293b;
-}
-.doc-content {
-  padding-top: 28px;
-}
-.doc-content h2 {
-  font-size: 15px;
-  font-weight: 700;
-  color: #10b981;
-  margin: 28px 0 10px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid #f0fdf4;
-}
-.doc-content h2:first-child { margin-top: 0; }
-.doc-content p, .doc-content li {
-  font-size: 14px;
-  line-height: 1.8;
-  color: #475569;
-}
-.doc-content ul, .doc-content ol {
-  padding-left: 18px;
-  margin: 6px 0;
-}
-.doc-content li { margin-bottom: 4px; }
-.doc-content .date { font-size: 13px; color: #94a3b8; margin-bottom: 24px; }
-.doc-content strong { color: #1e293b; font-weight: 600; }
-.info-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 13px;
-  margin: 10px 0;
-}
-.info-table th {
-  background: #f8fafc;
-  padding: 10px 12px;
-  text-align: left;
-  font-weight: 600;
-  color: #475569;
-  border: 1px solid #e2e8f0;
-  white-space: nowrap;
-}
-.info-table td {
-  padding: 10px 12px;
-  border: 1px solid #e2e8f0;
-  color: #64748b;
-  line-height: 1.6;
-}
-</style>
+${DOC_STYLE}
 
 <div class="doc-wrap">
   <div class="doc-header">
@@ -608,7 +612,7 @@ body { background: #fff; color: #1e293b; }
     <h2>부칙</h2>
     <p>본 방침은 2025년 1월 1일부터 시행됩니다.</p>
     <br>
-    <p style="font-size:13px;color:#94a3b8;">(주)모빈 &nbsp;|&nbsp; 사업자등록번호: 통신판매업신고 2018-서울서초-0006호</p>
+    <p style="font-size:13px;color:#8e9ab4;">(주)모빈 &nbsp;|&nbsp; 사업자등록번호: 통신판매업신고 2018-서울서초-0006호</p>
   </div>
 </div>
 `)

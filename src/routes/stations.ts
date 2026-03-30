@@ -1,7 +1,7 @@
 // 주유소 API 라우트 (공개 + 사장님)
 import { Hono } from 'hono'
 import { authMiddleware, requireRole } from '../middleware/auth'
-import { generateId } from '../utils/jwt'
+import { generateId, kstNow } from '../utils/jwt'
 import type { Env, JWTPayload } from '../types'
 import QRCode from 'qrcode'
 
@@ -178,7 +178,7 @@ stations.get('/my-stations/:id', authMiddleware, requireRole('station_owner'), a
 stations.patch('/my-stations/:id', authMiddleware, requireRole('station_owner'), async (c) => {
   const user = c.get('user')
   const stationId = c.req.param('id')
-  const { phone, car_wash_type, is_active } = await c.req.json()
+  const { station_name, phone, car_wash_type, is_active } = await c.req.json()
 
   const station = await c.env.DB.prepare(
     `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
@@ -186,9 +186,20 @@ stations.patch('/my-stations/:id', authMiddleware, requireRole('station_owner'),
   if (!station) return c.json({ error: '권한이 없습니다.' }, 403)
 
   await c.env.DB.prepare(
-    `UPDATE stations SET phone = COALESCE(?, phone), car_wash_type = COALESCE(?, car_wash_type),
-     is_active = COALESCE(?, is_active), updated_at = datetime('now') WHERE id = ?`
-  ).bind(phone ?? null, car_wash_type ?? null, is_active ?? null, stationId).run()
+    `UPDATE stations SET
+       station_name = COALESCE(?, station_name),
+       phone = CASE WHEN ? IS NOT NULL THEN ? ELSE phone END,
+       car_wash_type = COALESCE(?, car_wash_type),
+       is_active = COALESCE(?, is_active),
+       updated_at = datetime('now')
+     WHERE id = ?`
+  ).bind(
+    station_name ?? null,
+    phone !== undefined ? 1 : null, phone ?? null,
+    car_wash_type ?? null,
+    is_active ?? null,
+    stationId
+  ).run()
 
   return c.json({ message: '수정되었습니다.' })
 })
@@ -251,7 +262,55 @@ stations.get('/my-stations/:id/qr-image', async (c) => {
   })
 })
 
-// 쿠폰 사용 처리 (QR 스캔 결과)
+// 쿠폰 사용 처리 - 고객이 주유소 QR 스캔 후 호출
+stations.post('/:id/use-coupon', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const stationId = parseInt(c.req.param('id'))
+  const { purchase_id, qr_code } = await c.req.json()
+
+  if (!purchase_id || !qr_code) {
+    return c.json({ error: '구매 ID와 QR 코드가 필요합니다.' }, 400)
+  }
+
+  // 주유소 QR 코드 검증
+  const station = await c.env.DB.prepare(
+    `SELECT id, station_name FROM stations WHERE id = ? AND qr_code = ? AND is_active = 1 AND is_closed = 0`
+  ).bind(stationId, qr_code).first<any>()
+  if (!station) return c.json({ error: '유효하지 않은 QR 코드입니다.' }, 400)
+
+  // 본인 쿠폰 구매 내역 확인
+  const purchase = await c.env.DB.prepare(
+    `SELECT p.*, c.wash_count, c.title
+     FROM coupon_purchases p
+     JOIN coupons c ON p.coupon_id = c.id
+     WHERE p.id = ? AND p.user_id = ? AND p.station_id = ? AND p.status = 'active' AND p.remaining_uses > 0`
+  ).bind(purchase_id, user.userId, stationId).first<any>()
+  if (!purchase) return c.json({ error: '사용 가능한 쿠폰이 없습니다.' }, 400)
+
+  const pricePerUse = Math.floor(purchase.unit_price / purchase.wash_count)
+
+  await c.env.DB.batch([
+    c.env.DB.prepare(
+      `INSERT INTO coupon_usages (purchase_id, user_id, station_id, coupon_id, unit_price, qr_code)
+       VALUES (?, ?, ?, ?, ?, ?)`
+    ).bind(purchase_id, user.userId, stationId, purchase.coupon_id, pricePerUse, qr_code),
+    c.env.DB.prepare(
+      `UPDATE coupon_purchases
+       SET remaining_uses = remaining_uses - 1,
+           status = CASE WHEN remaining_uses - 1 = 0 THEN 'used' ELSE status END
+       WHERE id = ?`
+    ).bind(purchase_id),
+  ])
+
+  return c.json({
+    message: '쿠폰이 사용되었습니다.',
+    remaining_uses: purchase.remaining_uses - 1,
+    coupon_title: purchase.title,
+    station_name: station.station_name,
+  })
+})
+
+// 쿠폰 사용 처리 (사장님이 고객 QR 스캔)
 stations.post('/my-stations/:id/use-coupon', authMiddleware, requireRole('station_owner', 'admin'), async (c) => {
   const stationId = parseInt(c.req.param('id'))
   const { purchase_id, qr_code } = await c.req.json()
@@ -286,8 +345,8 @@ stations.post('/my-stations/:id/use-coupon', authMiddleware, requireRole('statio
     c.env.DB.prepare(
       `UPDATE coupon_purchases SET remaining_uses = remaining_uses - 1,
        status = CASE WHEN remaining_uses - 1 = 0 THEN 'used' ELSE status END,
-       updated_at = datetime('now') WHERE id = ?`
-    ).bind(purchase_id),
+       updated_at = ? WHERE id = ?`
+    ).bind(kstNow(), purchase_id),
   ])
 
   return c.json({

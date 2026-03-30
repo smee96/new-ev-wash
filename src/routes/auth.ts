@@ -7,7 +7,7 @@ const auth = new Hono<{ Bindings: Env }>()
 
 // ============ 이메일 회원가입 ============
 auth.post('/register', async (c) => {
-  const { name, email, phone, password, userType } = await c.req.json()
+  const { name, email, phone, password, userType, marketingAgreed } = await c.req.json()
 
   if (!name || !email || !password) {
     return c.json({ error: '필수 정보를 입력해주세요.' }, 400)
@@ -18,10 +18,14 @@ auth.post('/register', async (c) => {
   if (!['customer', 'station_owner'].includes(userType || 'customer')) {
     return c.json({ error: '잘못된 회원 유형입니다.' }, 400)
   }
-  // 주유소 사장님은 전화번호 필수
-  if ((userType || 'customer') === 'station_owner' && !phone) {
-    return c.json({ error: '주유소 사장님은 전화번호를 입력해주세요.' }, 400)
+  // 모든 회원 전화번호 필수
+  const phoneDigits = (phone || '').replace(/\D/g, '')
+  if (phoneDigits.length < 10) {
+    return c.json({ error: '올바른 휴대폰 번호를 입력해주세요.' }, 400)
   }
+  const phoneFormatted = phoneDigits.length === 11
+    ? `${phoneDigits.slice(0,3)}-${phoneDigits.slice(3,7)}-${phoneDigits.slice(7)}`
+    : `${phoneDigits.slice(0,3)}-${phoneDigits.slice(3,6)}-${phoneDigits.slice(6)}`
 
   const existing = await c.env.DB.prepare('SELECT id FROM users WHERE email = ?').bind(email).first()
   if (existing) {
@@ -30,8 +34,8 @@ auth.post('/register', async (c) => {
 
   const passwordHash = await hashPassword(password)
   const result = await c.env.DB.prepare(
-    `INSERT INTO users (email, name, phone, password_hash, user_type) VALUES (?, ?, ?, ?, ?)`
-  ).bind(email, name, phone || null, passwordHash, userType || 'customer').run()
+    `INSERT INTO users (email, name, phone, password_hash, user_type, marketing_agreed) VALUES (?, ?, ?, ?, ?, ?)`
+  ).bind(email, name, phoneFormatted, passwordHash, userType || 'customer', marketingAgreed ? 1 : 0).run()
 
   const userId = result.meta.last_row_id as number
   const token = await signJWT(
@@ -41,7 +45,7 @@ auth.post('/register', async (c) => {
 
   return c.json({
     token,
-    user: { id: userId, email, name, phone: phone || null, userType: userType || 'customer' }
+    user: { id: userId, email, name, phone: phoneFormatted, userType: userType || 'customer' }
   }, 201)
 })
 

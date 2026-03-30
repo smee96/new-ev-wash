@@ -57,7 +57,7 @@ const ADMIN_NAV = `
     <a href="/admin/settings" class="nav-item"><i class="fas fa-cog w-5"></i>설정</a>
   </nav>
   <div class="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-700">
-    <button onclick="if(confirm('로그아웃?'))logout()" class="text-gray-400 text-sm w-full text-left">
+    <button onclick="doAdminLogout()" class="text-gray-400 text-sm w-full text-left">
       <i class="fas fa-sign-out-alt mr-2"></i>로그아웃
     </button>
   </div>
@@ -88,6 +88,9 @@ document.addEventListener('DOMContentLoaded', () => {
     }
   });
 });
+function doAdminLogout() {
+  showDialog({ icon:'👋', title:'로그아웃', msg:'로그아웃 하시겠습니까?', confirmText:'로그아웃', confirmClass:'btn-danger', onConfirm: logout });
+}
 </script>
 `
 
@@ -208,14 +211,28 @@ ${ADMIN_NAV}
 </div>
 
 <!-- 상세 모달 -->
-<div id="detailModal" class="modal-bg hidden" onclick="closeModal()">
-  <div class="modal max-h-screen overflow-y-auto" onclick="event.stopPropagation()" style="max-height:85vh">
+<div id="detailModal" class="modal-bg hidden" onclick="closeAppModal()">
+  <div class="modal overflow-y-auto" onclick="event.stopPropagation()" style="max-height:85vh">
+    <div class="modal-handle"></div>
     <div id="modalContent"></div>
   </div>
 </div>
 
+<!-- 반려 사유 모달 -->
+<div id="rejectModal" class="modal-bg hidden">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
+    <div class="modal-title">반려 사유 입력</div>
+    <textarea id="rejectReason" class="input mt-3 mb-4" rows="3" placeholder="반려 사유를 입력해주세요" style="resize:none;height:100px"></textarea>
+    <div class="flex gap-3">
+      <button onclick="closeModal('rejectModal')" class="btn btn-gray" style="flex:1">취소</button>
+      <button onclick="submitReject()" class="btn btn-danger" style="flex:1">반려</button>
+    </div>
+  </div>
+</div>
+
 <script>
-let currentStatus = 'pending';
+let currentStatus = 'pending', _rejectId = null;
 window.addEventListener('DOMContentLoaded', () => { requireAuth('admin'); loadApps('pending'); });
 
 async function loadApps(status) {
@@ -277,34 +294,50 @@ async function showDetail(id) {
       \${a.status === 'pending' ? \`
         <div class="flex gap-3 mt-4">
           <button onclick="approveApp(\${a.id})" class="btn btn-primary" style="flex:1">승인</button>
-          <button onclick="showRejectForm(\${a.id})" class="btn btn-danger" style="flex:1">반려</button>
+          <button onclick="openRejectModal(\${a.id})" class="btn btn-danger" style="flex:1">반려</button>
         </div>
       \` : ''}
       \${a.status === 'rejected' ? '<p class="text-sm text-red-400 mt-3"><b>반려사유:</b> '+a.reject_reason+'</p>' : ''}
-      <button onclick="closeModal()" class="btn btn-outline mt-3">닫기</button>
+      <button onclick="closeAppModal()" class="btn btn-gray mt-3">닫기</button>
     \`;
   } catch { document.getElementById('modalContent').innerHTML = '<p class="text-red-400">불러올 수 없습니다</p>'; }
 }
 
 async function approveApp(id) {
-  if (!confirm('승인하시겠습니까?')) return;
+  showDialog({
+    icon: '✅',
+    title: '승인',
+    msg: '이 신청을 승인하시겠습니까?',
+    confirmText: '승인',
+    onConfirm: async () => {
+      try {
+        await API.post('/admin/applications/' + id + '/approve', {});
+        showToast('승인되었습니다!');
+        closeAppModal();
+        loadApps(currentStatus);
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+  });
+}
+
+function openRejectModal(id) {
+  _rejectId = id;
+  document.getElementById('rejectReason').value = '';
+  openModal('rejectModal');
+}
+async function submitReject() {
+  const reason = document.getElementById('rejectReason').value.trim();
+  if (!reason) return showToast('반려 사유를 입력해주세요.', 'error');
   try {
-    await API.post('/admin/applications/' + id + '/approve', {});
-    showToast('승인되었습니다!');
-    closeModal();
+    await API.post('/admin/applications/' + _rejectId + '/reject', { reason });
+    showToast('반려되었습니다.');
+    closeModal('rejectModal');
+    closeAppModal();
     loadApps(currentStatus);
   } catch(e) { showToast(e.message, 'error'); }
 }
 
-function showRejectForm(id) {
-  const reason = prompt('반려 사유를 입력해주세요.');
-  if (!reason) return;
-  API.post('/admin/applications/' + id + '/reject', { reason })
-    .then(() => { showToast('반려되었습니다.'); closeModal(); loadApps(currentStatus); })
-    .catch(e => showToast(e.message, 'error'));
-}
-
-function closeModal() { document.getElementById('detailModal').classList.add('hidden'); }
+function closeAppModal() { closeModal('detailModal'); }
 </script>
 `)
 }
@@ -326,8 +359,9 @@ ${ADMIN_NAV}
 </div>
 
 <!-- 상세 모달 -->
-<div id="detailModal" class="modal-bg hidden" onclick="closeModal()">
+<div id="detailModal" class="modal-bg hidden" onclick="closeStationModal()">
   <div class="modal overflow-y-auto" style="max-height:85vh" onclick="event.stopPropagation()">
+    <div class="modal-handle"></div>
     <div id="modalContent"></div>
   </div>
 </div>
@@ -381,22 +415,30 @@ async function showDetail(id) {
         <div class="flex justify-between"><span class="text-gray-400">상태</span><span>\${s.is_closed?'폐업':s.is_active?'운영중':'비활성'}</span></div>
       </div>
       \${!s.is_closed ? \`<button onclick="closeStation(\${s.id})" class="btn btn-danger mb-3">폐업 처리 (미사용 쿠폰 환불)</button>\` : ''}
-      <button onclick="closeModal()" class="btn btn-outline">닫기</button>
+      <button onclick="closeStationModal()" class="btn btn-gray">닫기</button>
     \`;
   } catch {}
 }
 
 async function closeStation(id) {
-  if (!confirm('폐업 처리하시겠습니까? 미사용 쿠폰이 모두 환불됩니다.')) return;
-  try {
-    const r = await API.post('/admin/stations/' + id + '/close', {});
-    showToast(r.message);
-    closeModal();
-    loadStations(currentPage);
-  } catch(e) { showToast(e.message, 'error'); }
+  showDialog({
+    icon: '⚠️',
+    title: '폐업 처리',
+    msg: '폐업 처리하시겠습니까?\n미사용 쿠폰이 모두 환불됩니다.',
+    confirmText: '폐업 처리',
+    confirmClass: 'btn-danger',
+    onConfirm: async () => {
+      try {
+        const r = await API.post('/admin/stations/' + id + '/close', {});
+        showToast(r.message);
+        closeStationModal();
+        loadStations(currentPage);
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+  });
 }
 
-function closeModal() { document.getElementById('detailModal').classList.add('hidden'); }
+function closeStationModal() { closeModal('detailModal'); }
 </script>
 `)
 }
@@ -613,13 +655,20 @@ async function loadPending() {
 
 async function processAll() {
   const date = document.getElementById('settleDate').value;
-  if (!confirm(date + ' 정산을 처리하시겠습니까?')) return;
-  try {
-    const r = await API.post('/admin/settlements/process', { date });
-    showToast(r.message);
-    loadSettlements();
-    document.getElementById('pendingList').innerHTML = '';
-  } catch(e) { showToast(e.message, 'error'); }
+  showDialog({
+    icon: '💰',
+    title: '정산 처리',
+    msg: date + ' 기준 정산을 처리하시겠습니까?',
+    confirmText: '처리',
+    onConfirm: async () => {
+      try {
+        const r = await API.post('/admin/settlements/process', { date });
+        showToast(r.message);
+        loadSettlements();
+        document.getElementById('pendingList').innerHTML = '';
+      } catch(e) { showToast(e.message, 'error'); }
+    }
+  });
 }
 
 async function loadSettlements() {

@@ -103,9 +103,9 @@ admin.post('/applications/:id/approve', async (c) => {
 
   // 신청 상태 업데이트
   await c.env.DB.prepare(
-    `UPDATE station_applications SET status = 'approved', reviewed_by = ?, reviewed_at = ${kstNow()}
+    `UPDATE station_applications SET status = 'approved', reviewed_by = ?, reviewed_at = ?
      WHERE id = ?`
-  ).bind(adminUser.userId, id).run()
+  ).bind(adminUser.userId, kstNow(), id).run()
 
   // 승인 이메일 발송
   if (app.owner_email) {
@@ -144,8 +144,8 @@ admin.post('/applications/:id/reject', async (c) => {
 
   await c.env.DB.prepare(
     `UPDATE station_applications SET status = 'rejected', reject_reason = ?,
-     reviewed_by = ?, reviewed_at = ${kstNow()} WHERE id = ?`
-  ).bind(reason, adminUser.userId, id).run()
+     reviewed_by = ?, reviewed_at = ? WHERE id = ?`
+  ).bind(reason, adminUser.userId, kstNow(), id).run()
 
   if (app.owner_email) {
     await sendEmail(
@@ -299,14 +299,15 @@ admin.post('/stations/:id/close', async (c) => {
           payment_method, toss_cancel_key, toss_error_code, toss_error_message,
           reason, admin_note, processed_at, updated_at)
          VALUES (?, ?, ?, ?, ?, ?, 0, ?, 'force_closure', ?, ?, ?, ?,
-                 '주유소 폐업 강제 환불', ?, ${kstNow()}, ${kstNow()})`
+                 '주유소 폐업 강제 환불', ?, ?, ?)`
       ).bind(
         purchase.id, purchase.user_id, stationId,
         purchase.remaining_uses, refundAmount, pricePerUse,
         tossOk ? 'completed' : 'failed',
         purchase.payment_method,
         tossCancelKey, tossErrorCode, tossErrorMessage,
-        `관리자: ${adminUser.name}`
+        `관리자: ${adminUser.name}`,
+        kstNow(), kstNow()
       )
     )
 
@@ -320,8 +321,8 @@ admin.post('/stations/:id/close', async (c) => {
            refunded_uses = refunded_uses + ?,
            toss_total_cancelled = toss_total_cancelled + ?,
            force_refunded = 1,
-           refunded_at = ${kstNow()},
-           updated_at = ${kstNow()}
+           refunded_at = ?,
+           updated_at = ?
          WHERE id = ?`
       ).bind(
         tossOk ? 'refunded' : purchase.status,  // 실패 시 상태 유지
@@ -329,6 +330,7 @@ admin.post('/stations/:id/close', async (c) => {
         tossOk ? refundAmount : 0,
         tossOk ? purchase.remaining_uses : 0,
         tossOk ? refundAmount : 0,
+        kstNow(), kstNow(),
         purchase.id
       )
     )
@@ -337,8 +339,8 @@ admin.post('/stations/:id/close', async (c) => {
   // 주유소 폐업 처리 + 쿠폰 비활성화
   dbOps.push(
     c.env.DB.prepare(
-      `UPDATE stations SET is_closed = 1, is_active = 0, closed_at = ${kstNow()} WHERE id = ?`
-    ).bind(stationId),
+      `UPDATE stations SET is_closed = 1, is_active = 0, closed_at = ? WHERE id = ?`
+    ).bind(kstNow(), stationId),
     c.env.DB.prepare(
       `UPDATE coupons SET is_active = 0 WHERE station_id = ?`
     ).bind(stationId)
@@ -503,8 +505,8 @@ admin.post('/settlements/process', async (c) => {
     ops.push(
       c.env.DB.prepare(
         `INSERT INTO settlements (station_id, settlement_date, gross_amount, platform_fee_rate, platform_fee, net_amount, usage_count, status, processed_at, processed_by)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ${kstNow()}, ?)`
-      ).bind(item.station_id, targetDate, item.gross, feeRate, fee, net, item.cnt, adminUser.userId),
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'completed', ?, ?)`
+      ).bind(item.station_id, targetDate, item.gross, feeRate, fee, net, item.cnt, kstNow(), adminUser.userId),
       c.env.DB.prepare(
         `UPDATE coupon_usages SET settled = 1 WHERE station_id = ? AND date(used_at) = ? AND settled = 0`
       ).bind(item.station_id, targetDate)
@@ -560,9 +562,9 @@ admin.put('/settings/:key', async (c) => {
   }
 
   await c.env.DB.prepare(
-    `INSERT INTO platform_settings (key, value, updated_at) VALUES (?, ?, ${kstNow()})
+    `INSERT INTO platform_settings (key, value, updated_at) VALUES (?, ?, ?)
      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
-  ).bind(key, String(value)).run()
+  ).bind(key, String(value), kstNow()).run()
 
   return c.json({ message: '설정이 저장되었습니다.' })
 })

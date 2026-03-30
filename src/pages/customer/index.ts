@@ -171,6 +171,16 @@ window.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('greeting').textContent = '안녕하세요!';
     document.getElementById('userName').textContent = u.name + '님';
     document.getElementById('couponSummary').classList.remove('hidden');
+    // 최신 이름을 서버에서 가져와 동기화
+    try {
+      const me = await API.get('/user/me');
+      if (me.user?.name) {
+        document.getElementById('userName').textContent = me.user.name + '님';
+        // localStorage도 갱신
+        const stored = getUser();
+        if (stored) { stored.name = me.user.name; setUser(localStorage.getItem('ev_token'), stored); }
+      }
+    } catch {}
     try { const r = await API.get('/coupons/my'); document.getElementById('couponCount').textContent = (r.stations||[]).reduce((s,x)=>s+x.remaining_quantity,0); } catch {}
   }
   loadStations();
@@ -646,6 +656,9 @@ async function saveProfile() {
     await API.patch('/user/me', { name, phone: phone || null });
     _myInfo.name = name; _myInfo.phone = phone;
     document.getElementById('myName').textContent = name;
+    // localStorage의 ev_user도 업데이트 → 홈 등 다른 페이지와 동기화
+    const stored = getUser();
+    if (stored) { stored.name = name; setUser(localStorage.getItem('ev_token'), stored); }
     closeModal('profileModal');
     showToast('프로필이 수정되었습니다.');
   } catch(e) { showToast(e.message || '수정 실패', 'error'); }

@@ -1086,6 +1086,35 @@ body { background: #f4f7fb; color: #1a202c; }
       </div>
     </div>
 
+    <!-- 쿠폰 인증 화면 안내 카드 -->
+    <div style="margin:4px 0 10px;background:#0a1628;border-radius:16px;padding:18px 16px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <div style="width:28px;height:28px;border-radius:8px;background:#bef264;display:flex;align-items:center;justify-content:center;flex-shrink:0">
+          <i class="fas fa-shield-check" style="color:#0a1628;font-size:13px"></i>
+        </div>
+        <span style="font-size:13px;font-weight:800;color:#bef264;letter-spacing:-0.01em">고객 화면으로 진짜 쿠폰 확인하는 법</span>
+      </div>
+      <p style="font-size:13px;color:rgba(255,255,255,.7);line-height:1.7;margin-bottom:12px">고객이 QR 스캔에 성공하면 아래와 같은 <b style="color:#fff">사용 완료 화면</b>이 즉시 표시됩니다. 이 화면을 눈으로 확인한 후 세차를 진행하세요.</p>
+      <!-- 미리보기 모형 -->
+      <div style="background:#1a2f5e;border-radius:12px;padding:14px;margin-bottom:10px">
+        <div style="text-align:center;margin-bottom:10px">
+          <div style="font-size:10px;font-weight:700;letter-spacing:0.1em;color:#84cc16;margin-bottom:2px">사용 일시</div>
+          <div style="font-size:13px;font-weight:700;color:#bef264">2026-03-31 (화)</div>
+          <div style="font-size:26px;font-weight:900;color:#f0ffd4;letter-spacing:0.05em;line-height:1.1">14:32:07</div>
+          <div style="font-size:9px;color:rgba(255,255,255,.4);margin-top:3px">↑ 실제 화면에서는 초단위로 움직입니다</div>
+        </div>
+        <div style="background:rgba(255,255,255,.08);border-radius:8px;padding:10px 12px;font-size:12px;color:rgba(255,255,255,.8);line-height:1.9">
+          <div><i class="fas fa-gas-pump" style="color:#84cc16;margin-right:6px"></i><b style="color:#fff">주유소명</b> 표시</div>
+          <div><i class="fas fa-ticket-alt" style="color:#84cc16;margin-right:6px"></i><b style="color:#fff">쿠폰명</b> 표시</div>
+          <div><i class="fas fa-layer-group" style="color:#84cc16;margin-right:6px"></i>사용 후 <b style="color:#bef264">잔여 횟수</b> 표시</div>
+        </div>
+      </div>
+      <div style="display:flex;gap:6px;align-items:flex-start">
+        <i class="fas fa-exclamation-circle" style="color:#fbbf24;font-size:13px;margin-top:2px;flex-shrink:0"></i>
+        <p style="font-size:12px;color:rgba(255,255,255,.55);line-height:1.65">시계가 실시간으로 움직이는 것이 정품 인증의 핵심입니다. 화면이 멈춰 있거나 캡처 이미지라면 정상 사용이 아닙니다.</p>
+      </div>
+    </div>
+
     <div class="step-card">
       <div class="step-num">5</div>
       <div class="step-content">

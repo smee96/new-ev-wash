@@ -12,32 +12,95 @@ admin.use('*', authMiddleware, requireRole('admin'))
 
 // ============ 대시보드 통계 ============
 admin.get('/dashboard', async (c) => {
-  const [users, stations, pendingApps, todayPayments, todaySales, pendingSettlement] =
-    await Promise.all([
-      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM users WHERE user_type = 'customer'`).first<any>(),
-      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM stations WHERE is_active = 1`).first<any>(),
-      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM station_applications WHERE status = 'pending'`).first<any>(),
-      c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM coupon_purchases WHERE date(created_at) = date('now')`).first<any>(),
-      c.env.DB.prepare(`SELECT SUM(total_amount) as total FROM coupon_purchases WHERE date(created_at) = date('now')`).first<any>(),
-      c.env.DB.prepare(`SELECT SUM(unit_price) as total FROM coupon_usages WHERE settled = 0`).first<any>(),
-    ])
+  // 플랫폼 수수료율 조회
+  const feeSetting = await c.env.DB.prepare(
+    `SELECT value FROM platform_settings WHERE key = 'platform_fee_rate'`
+  ).first<any>()
+  const feeRate = parseFloat(feeSetting?.value || '0.15')
 
-  // 최근 7일 매출
+  const [
+    users, stations, pendingApps,
+    todaySales, yesterdaySales,
+    thisMonthSales, lastMonthSales,
+    pendingSettlement,
+  ] = await Promise.all([
+    // 기본 현황
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM users WHERE user_type = 'customer'`).first<any>(),
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM stations WHERE is_active = 1`).first<any>(),
+    c.env.DB.prepare(`SELECT COUNT(*) as cnt FROM station_applications WHERE status = 'pending'`).first<any>(),
+    // 오늘 매출·건수
+    c.env.DB.prepare(`
+      SELECT COALESCE(SUM(total_amount),0) as total, COUNT(*) as cnt
+      FROM coupon_purchases
+      WHERE date(created_at,'localtime') = date('now','localtime') AND status = 'paid'
+    `).first<any>(),
+    // 어제 매출·건수
+    c.env.DB.prepare(`
+      SELECT COALESCE(SUM(total_amount),0) as total, COUNT(*) as cnt
+      FROM coupon_purchases
+      WHERE date(created_at,'localtime') = date('now','localtime','-1 day') AND status = 'paid'
+    `).first<any>(),
+    // 이번달 매출·건수
+    c.env.DB.prepare(`
+      SELECT COALESCE(SUM(total_amount),0) as total, COUNT(*) as cnt
+      FROM coupon_purchases
+      WHERE strftime('%Y-%m', created_at,'localtime') = strftime('%Y-%m','now','localtime') AND status = 'paid'
+    `).first<any>(),
+    // 지난달 매출·건수
+    c.env.DB.prepare(`
+      SELECT COALESCE(SUM(total_amount),0) as total, COUNT(*) as cnt
+      FROM coupon_purchases
+      WHERE strftime('%Y-%m', created_at,'localtime') = strftime('%Y-%m','now','localtime','-1 month') AND status = 'paid'
+    `).first<any>(),
+    // 미정산 금액 (정산 예정)
+    c.env.DB.prepare(`SELECT COALESCE(SUM(unit_price),0) as total FROM coupon_usages WHERE settled = 0`).first<any>(),
+  ])
+
+  // 최근 7일 매출 (차트)
   const weeklySales = await c.env.DB.prepare(`
-    SELECT date(created_at) as day, SUM(total_amount) as total, COUNT(*) as cnt
+    SELECT date(created_at,'localtime') as day,
+           COALESCE(SUM(total_amount),0) as total,
+           COUNT(*) as cnt
     FROM coupon_purchases
-    WHERE created_at >= date('now', '-7 days')
+    WHERE date(created_at,'localtime') >= date('now','localtime','-6 days')
+      AND status = 'paid'
     GROUP BY day ORDER BY day
   `).all()
 
+  const todayTotal    = todaySales?.total     || 0
+  const yesterdayTotal= yesterdaySales?.total  || 0
+  const thisMonthTotal= thisMonthSales?.total  || 0
+  const lastMonthTotal= lastMonthSales?.total  || 0
+  const pendingTotal  = pendingSettlement?.total|| 0
+
   return c.json({
-    total_users: users?.cnt || 0,
-    total_stations: stations?.cnt || 0,
-    pending_applications: pendingApps?.cnt || 0,
-    today_payment_count: todayPayments?.cnt || 0,
-    today_sales: todaySales?.total || 0,
-    pending_settlement_amount: pendingSettlement?.total || 0,
-    weekly_sales: weeklySales.results,
+    total_users:              users?.cnt            || 0,
+    total_stations:           stations?.cnt         || 0,
+    pending_applications:     pendingApps?.cnt      || 0,
+    // 오늘
+    today_sales:              todayTotal,
+    today_payment_count:      todaySales?.cnt       || 0,
+    today_platform_fee:       Math.floor(todayTotal * feeRate),
+    today_settle_expected:    Math.floor(todayTotal * (1 - feeRate)),
+    // 어제
+    yesterday_sales:          yesterdayTotal,
+    yesterday_payment_count:  yesterdaySales?.cnt   || 0,
+    yesterday_platform_fee:   Math.floor(yesterdayTotal * feeRate),
+    yesterday_settle_expected:Math.floor(yesterdayTotal * (1 - feeRate)),
+    // 이번달
+    month_sales:              thisMonthTotal,
+    month_payment_count:      thisMonthSales?.cnt   || 0,
+    month_platform_fee:       Math.floor(thisMonthTotal * feeRate),
+    month_settle_expected:    Math.floor(thisMonthTotal * (1 - feeRate)),
+    // 지난달
+    last_month_sales:         lastMonthTotal,
+    last_month_payment_count: lastMonthSales?.cnt   || 0,
+    last_month_platform_fee:  Math.floor(lastMonthTotal * feeRate),
+    last_month_settle_expected:Math.floor(lastMonthTotal * (1 - feeRate)),
+    // 기타
+    pending_settlement_amount:pendingTotal,
+    fee_rate:                 feeRate,
+    weekly_sales:             weeklySales.results,
   })
 })
 

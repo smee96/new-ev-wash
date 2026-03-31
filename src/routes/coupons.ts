@@ -146,7 +146,7 @@ coupons.get('/my', authMiddleware, requireRole('customer'), async (c) => {
      FROM coupon_purchases p
      JOIN coupons c ON p.coupon_id = c.id
      JOIN stations s ON p.station_id = s.id
-     WHERE p.user_id = ? AND p.status IN ('active', 'partial_refunded')
+     WHERE p.user_id = ? AND p.status IN ('active', 'partial_refunded') AND p.remaining_uses > 0
      ORDER BY p.created_at DESC`
   ).bind(user.userId).all<any>()
 
@@ -182,7 +182,7 @@ coupons.get('/my/:stationId', authMiddleware, requireRole('customer'), async (c)
             c.title as coupon_title, c.wash_count, c.discount_price
      FROM coupon_purchases p
      JOIN coupons c ON p.coupon_id = c.id
-     WHERE p.user_id = ? AND p.station_id = ? AND p.status NOT IN ('refunded')
+     WHERE p.user_id = ? AND p.station_id = ? AND p.status NOT IN ('refunded', 'used')
      ORDER BY p.created_at ASC`
   ).bind(user.userId, stationId).all()
 

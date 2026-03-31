@@ -126,9 +126,9 @@ export function myCouponDetailPage(): string {
       </div>
     </div>
     <div class="rounded-xl p-3 mb-2 text-xs" style="background:#fef3c7;border:1px solid #fde68a;color:#92400e">
-      <p>• 카드 결제: 영업일 3~4일 후 취소</p>
-      <p>• 계좌이체: 즉시 환불 (180일 이내)</p>
-      <p>• 휴대폰 결제: 결제 당월만 가능</p>
+      <p>• 카드: 결제일로부터 <b>180일 이내</b>만 가능 · 영업일 3~4일 소요</p>
+      <p>• 계좌이체: 결제일로부터 <b>180일 이내</b>만 가능 · 즉시 환불</p>
+      <p>• 휴대폰: <b>결제 당월</b>에만 취소 가능</p>
     </div>
     <div id="refundReasonWrap" class="mb-5">
       <label class="text-sm font-medium mb-2 block" style="color:#4a5568">환불 사유</label>

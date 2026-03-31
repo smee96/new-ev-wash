@@ -7,15 +7,15 @@ export type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
 export function getRefundMethodNotice(method: string | null | undefined): string {
   switch (method) {
     case 'card':
-      return '카드 결제 환불은 영업일 기준 3~4일 소요됩니다. (당일 전액취소는 즉시 처리)'
+      return '카드 부분취소는 결제일로부터 180일 이내만 가능합니다. 영업일 기준 3~4일 후 카드사 환불 처리됩니다.'
     case 'transfer':
-      return '계좌이체 환불은 즉시 처리됩니다. (180일 이내 거래만 가능)'
+      return '계좌이체 환불은 결제일로부터 180일 이내만 가능하며, 즉시 처리됩니다.'
     case 'virtual_account':
-      return '가상계좌 환불은 영업일 기준 2일 소요됩니다.'
+      return '가상계좌 환불은 영업일 기준 2일 소요됩니다. (180일 이내 거래)'
     case 'mobile':
       return '휴대폰 결제는 결제 당월에만 취소 가능합니다.'
     default:
-      return '환불은 영업일 기준 3~4일 소요될 수 있습니다.'
+      return '환불은 영업일 기준 3~4일 소요될 수 있습니다. (결제일로부터 180일 이내)'
   }
 }
 
@@ -51,6 +51,17 @@ export async function callTossCancel(
   )
   const data = await res.json() as any
   return { ok: res.ok, data }
+}
+
+// Toss 테스트 결제키 여부 판단
+// 테스트키: tviva...(샌드박스), test_...(레거시), local_...(로컬 더미)
+export function isTossTestPayment(paymentKey: string | null | undefined): boolean {
+  if (!paymentKey) return true
+  return (
+    paymentKey.startsWith('tviva') ||
+    paymentKey.startsWith('test_') ||
+    paymentKey.startsWith('local_')
+  )
 }
 
 // 결제수단 정규화

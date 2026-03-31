@@ -7,6 +7,7 @@ import {
   getRefundMethodNotice,
   calcRefundAmountPerUse,
   callTossCancel,
+  isTossTestPayment,
   normalizePaymentMethod,
 } from './coupon-utils'
 
@@ -520,9 +521,10 @@ coupons.post('/refund/:purchaseId', authMiddleware, requireRole('customer'), asy
     let tossErrorMessage: string | null = null
 
     const secretKey = c.env.TOSS_SECRET_KEY || ''
-    const isRealPayment = purchase.payment_key && !purchase.payment_key.startsWith('test_')
+    const isTestPayment = isTossTestPayment(purchase.payment_key)
+    const isRealPayment = !isTestPayment && !!secretKey
 
-    if (isRealPayment && secretKey) {
+    if (isRealPayment) {
       try {
         const { ok, data } = await callTossCancel(secretKey, purchase.payment_key, refundAmount, reason)
         if (ok) {
@@ -538,9 +540,9 @@ coupons.post('/refund/:purchaseId', authMiddleware, requireRole('customer'), asy
         tossErrorMessage = err?.message || '네트워크 오류'
       }
     } else {
-      // 테스트 결제키(tviva...) 또는 결제키 없음 → DB만 처리
+      // 테스트 결제(tviva..., test_...) 또는 secretKey 없음 → DB만 처리
       tossOk = true
-      tossCancelKey = 'local_cancel'
+      tossCancelKey = 'local_cancel_' + Date.now()
     }
 
     if (!tossOk) {

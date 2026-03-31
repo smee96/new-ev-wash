@@ -218,11 +218,17 @@ function renderMarkers(list) {
     const pos = new kakao.maps.LatLng(s.latitude, s.longitude);
     bounds.extend(pos);
 
-    // 커스텀 오버레이 (말풍선 핀)
-    const content = '<div class="custom-marker" onclick="location.href=\\'/stations/'+s.id+'\\'">'
-      + s.station_name
-      + (s.distance!=null ? ' <span style="opacity:.75">'+s.distance.toFixed(1)+'km</span>' : '')
-      + '</div>';
+    // 커스텀 오버레이 (말풍선 핀) - 클릭 시 상세 이동, 길찾기 버튼 포함
+    const content = '<div style="display:flex;flex-direction:column;align-items:center;cursor:pointer">'
+      + '<div class="custom-marker" onclick="location.href=\'/stations/'+s.id+'\'">'
+        + s.station_name
+        + (s.distance!=null ? ' <span style="opacity:.75">'+s.distance.toFixed(1)+'km</span>' : '')
+      + '</div>'
+      + '<div style="display:flex;gap:4px;margin-top:3px">'
+        + '<a href="/stations/'+s.id+'" style="background:#fff;border:1px solid #e2e8f0;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:600;color:#1a2f5e;text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.1)">상세</a>'
+        + '<a href="https://map.kakao.com/link/to/'+encodeURIComponent(s.station_name)+','+s.latitude+','+s.longitude+'" target="_blank" style="background:#FEE500;border:1px solid #f0d900;border-radius:8px;padding:2px 7px;font-size:10px;font-weight:600;color:#3C1E1E;text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.1)">길찾기</a>'
+      + '</div>'
+    + '</div>';
     const overlay = new kakao.maps.CustomOverlay({ position:pos, content, yAnchor:1.6 });
     overlay.setMap(map);
     overlays.push(overlay);
@@ -350,14 +356,53 @@ window.addEventListener('DOMContentLoaded', async () => {
         + '" target="_blank" class="text-xs flex items-center justify-end gap-1 mt-1.5" style="color:#8e9ab4">'
         + '<i class="fas fa-external-link-alt"></i>카카오맵에서 보기</a>'
       : '';
+    // 쿠폰 HTML 생성
+    const couponsHtml = coupons.length
+      ? coupons.map(c => {
+          const disc = Math.round((1 - c.discount_price / c.original_price) * 100);
+          return '<div class="card fade-in" style="border:1px solid #eef1f7">'
+            +'<div class="flex justify-between items-start mb-2">'
+              +'<div class="flex-1"><h4 class="font-semibold" style="color:#1a202c">'+c.title+'</h4>'+(c.description?'<p class="text-xs mt-0.5" style="color:#8e9ab4">'+c.description+'</p>':'')+'</div>'
+              +(disc>0?'<span class="badge badge-red ml-2 flex-shrink-0">'+disc+'%</span>':'')
+            +'</div>'
+            +'<div class="flex items-baseline gap-2 mb-2">'
+              +'<span class="text-2xl font-bold" style="color:#65a30d">'+formatPrice(c.discount_price)+'</span>'
+              +(disc>0?'<span class="text-sm line-through" style="color:#dde3ef">'+formatPrice(c.original_price)+'</span>':'')
+            +'</div>'
+            +'<p class="text-xs mb-4" style="color:#8e9ab4">'+c.wash_count+'회 이용권 · 유효기간 없음</p>'
+            +'<button class="btn btn-primary buy-btn" data-id="'+c.id+'" data-price="'+c.discount_price+'" data-wash="'+c.wash_count+'" data-title="'+c.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">구매하기</button>'
+            +'</div>';
+        }).join('')
+      : '<div class="card text-center py-10" style="color:#8e9ab4">판매 중인 쿠폰이 없습니다</div>';
+
+    // 카카오맵 길찾기 링크 (카카오맵 앱/웹 연동)
+    const kakaoNaviLink = (s.latitude && s.longitude)
+      ? '<a href="https://map.kakao.com/link/to/'+encodeURIComponent(s.station_name)+','+s.latitude+','+s.longitude
+        + '" target="_blank" class="flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold mt-2" style="background:#FEE500;color:#3C1E1E">'
+        + '<img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png" style="width:18px;height:18px">카카오맵 길찾기</a>'
+      : '';
+
+    // 전체 HTML 한번에 삽입
     document.getElementById('content').innerHTML =
-      '<div class="card" style="border-left:4px solid #84cc16"><h2 class="text-lg font-bold" style="color:#1a202c">'+s.station_name+'</h2>'
-      +'<p class="text-sm mt-2" style="color:#8e9ab4"><i class="fas fa-map-marker-alt mr-1.5" style="color:#84cc16"></i>'+s.address+(s.address_detail?' '+s.address_detail:'')+'</p>'
-      +(s.phone?'<p class="text-sm mt-1.5" style="color:#8e9ab4"><i class="fas fa-phone mr-1.5" style="color:#84cc16"></i><a href="tel:'+s.phone+'" style="color:#1a2f5e;font-weight:600">'+s.phone+'</a></p>':'')
-      +'<div class="mt-3"><span class="badge badge-navy">'+(s.car_wash_type==='automatic'?'🚗 자동세차':s.car_wash_type==='self'?'💧 셀프세차':'🚗 자동+셀프')+'</span></div>'
-      + mapHtml + '</div>'
+      '<div class="card" style="border-left:4px solid #84cc16">'
+        +'<h2 class="text-lg font-bold" style="color:#1a202c">'+s.station_name+'</h2>'
+        +'<p class="text-sm mt-2" style="color:#8e9ab4"><i class="fas fa-map-marker-alt mr-1.5" style="color:#84cc16"></i>'+s.address+(s.address_detail?' '+s.address_detail:'')+'</p>'
+        +(s.phone?'<p class="text-sm mt-1.5" style="color:#8e9ab4"><i class="fas fa-phone mr-1.5" style="color:#84cc16"></i><a href="tel:'+s.phone+'" style="color:#1a2f5e;font-weight:600">'+s.phone+'</a></p>':'')
+        +'<div class="mt-3"><span class="badge badge-navy">'+(s.car_wash_type==='automatic'?'🚗 자동세차':s.car_wash_type==='self'?'💧 셀프세차':'🚗 자동+셀프')+'</span></div>'
+        + mapHtml
+        + kakaoNaviLink
+      +'</div>'
       +'<h3 class="font-bold text-base" style="color:#1a202c">판매 쿠폰</h3>'
-    // 카카오맵 지도 초기화 (좌표 있을 때)
+      + couponsHtml;
+
+    // 구매 버튼 이벤트
+    document.getElementById('content').addEventListener('click', function(e) {
+      const btn = e.target.closest('.buy-btn');
+      if (!btn) return;
+      openBuyModal(Number(btn.dataset.id), Number(btn.dataset.price), btn.dataset.title, Number(btn.dataset.wash));
+    });
+
+    // 카카오맵 지도 초기화 (좌표 있을 때, HTML 삽입 후 실행)
     if (s.latitude && s.longitude) {
       setTimeout(() => {
         const mapEl = document.getElementById('detailMap');
@@ -371,30 +416,9 @@ window.addEventListener('DOMContentLoaded', async () => {
           yAnchor: 2.8
         });
         overlay.setMap(detailMap);
-      }, 100);
+      }, 150);
     }
-      +(coupons.length?coupons.map(c=>{
-        const disc=Math.round((1-c.discount_price/c.original_price)*100);
-        return '<div class="card fade-in" style="border:1px solid #eef1f7">'
-          +'<div class="flex justify-between items-start mb-2">'
-          +'<div class="flex-1"><h4 class="font-semibold" style="color:#1a202c">'+c.title+'</h4>'+(c.description?'<p class="text-xs mt-0.5" style="color:#8e9ab4">'+c.description+'</p>':'')+'</div>'
-          +(disc>0?'<span class="badge badge-red ml-2 flex-shrink-0">'+disc+'%</span>':'')
-          +'</div>'
-          +'<div class="flex items-baseline gap-2 mb-2">'
-          +'<span class="text-2xl font-bold" style="color:#65a30d">'+formatPrice(c.discount_price)+'</span>'
-          +(disc>0?'<span class="text-sm line-through" style="color:#dde3ef">'+formatPrice(c.original_price)+'</span>':'')
-          +'</div>'
-          +'<p class="text-xs mb-4" style="color:#8e9ab4">'+c.wash_count+'회 이용권 · 유효기간 없음</p>'
-          +'<button class="btn btn-primary buy-btn" data-id="'+c.id+'" data-price="'+c.discount_price+'" data-wash="'+c.wash_count+'" data-title="'+c.title.replace(/&/g,'&amp;').replace(/"/g,'&quot;')+'">구매하기</button>'
-          +'</div>';
-      }).join('')
-      :'<div class="card text-center py-10" style="color:#8e9ab4">판매 중인 쿠폰이 없습니다</div>');
-    document.getElementById('content').addEventListener('click', function(e) {
-      const btn = e.target.closest('.buy-btn');
-      if (!btn) return;
-      openBuyModal(Number(btn.dataset.id), Number(btn.dataset.price), btn.dataset.title, Number(btn.dataset.wash));
-    });
-  } catch { document.getElementById('content').innerHTML='<div class="card text-center py-10" style="color:#ef4444">정보를 불러올 수 없습니다</div>'; }
+  } catch(e) { document.getElementById('content').innerHTML='<div class="card text-center py-10" style="color:#ef4444">정보를 불러올 수 없습니다</div>'; }
 });
 function openBuyModal(couponId, price, title, washCount) {
   if (!getUser()) return window.location.href = '/login';

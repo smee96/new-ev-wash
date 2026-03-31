@@ -3,34 +3,177 @@ import { htmlPage } from '../layout'
 
 export function myCouponsPage(): string {
   return htmlPage('내 쿠폰', `
-<div class="min-h-screen pb-24">
-  <div class="page-header">
-    <span class="page-header-title">내 쿠폰</span>
+<style>
+#couponMapWrap { width:100%; height:calc(100vh - 180px); }
+#couponMap { width:100%; height:100%; }
+#couponListWrap { display:none; }
+</style>
+
+<div class="min-h-screen pb-24" style="display:flex;flex-direction:column">
+  <!-- 헤더 + 탭 -->
+  <div class="bg-white sticky top-0 z-50 px-4 pt-3 pb-2 border-b" style="border-color:#eef1f7;padding-top:max(12px,env(safe-area-inset-top))">
+    <div class="flex items-center justify-between mb-2">
+      <h1 class="text-lg font-bold" style="color:#1a2f5e">내 쿠폰</h1>
+      <span id="couponTotalBadge" class="badge badge-green text-xs"></span>
+    </div>
+    <div class="flex rounded-xl overflow-hidden" style="border:1px solid #eef1f7">
+      <button id="tabMap" onclick="showCouponMap()" class="flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5" style="background:#1a2f5e;color:#bef264">
+        <i class="fas fa-map"></i> 지도
+      </button>
+      <button id="tabList" onclick="showCouponList()" class="flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5" style="background:#fff;color:#8e9ab4">
+        <i class="fas fa-list"></i> 목록
+      </button>
+    </div>
   </div>
-  <div id="content" class="p-4">
+
+  <!-- 지도 뷰 -->
+  <div id="couponMapWrap">
+    <div id="couponMap"></div>
+  </div>
+
+  <!-- 목록 뷰 -->
+  <div id="couponListWrap" class="p-4 space-y-3">
     <div class="card text-center py-12">
       <i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i>
     </div>
   </div>
 </div>
+
 <nav class="bottom-nav">
   <a href="/home"><i class="fas fa-home"></i>홈</a>
   <a href="/stations"><i class="fas fa-gas-pump"></i>주유소</a>
   <a href="/my-coupons" class="active"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
   <a href="/mypage"><i class="fas fa-user"></i>마이</a>
 </nav>
+
 <script>
-window.addEventListener('DOMContentLoaded', async () => {
+let couponMap, couponOverlays = [], allStations = [];
+
+function showCouponMap() {
+  document.getElementById('couponMapWrap').style.display = 'block';
+  document.getElementById('couponListWrap').style.display = 'none';
+  document.getElementById('tabMap').style.cssText = 'flex:1;padding:8px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;background:#1a2f5e;color:#bef264';
+  document.getElementById('tabList').style.cssText = 'flex:1;padding:8px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;background:#fff;color:#8e9ab4';
+  if (couponMap) setTimeout(function(){ couponMap.relayout(); }, 50);
+}
+function showCouponList() {
+  document.getElementById('couponMapWrap').style.display = 'none';
+  document.getElementById('couponListWrap').style.display = 'block';
+  document.getElementById('tabList').style.cssText = 'flex:1;padding:8px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;background:#1a2f5e;color:#bef264';
+  document.getElementById('tabMap').style.cssText = 'flex:1;padding:8px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:center;gap:6px;background:#fff;color:#8e9ab4';
+}
+
+function renderCouponMarkers(stations) {
+  couponOverlays.forEach(function(o){ o.setMap(null); });
+  couponOverlays = [];
+  var hasCoord = stations.filter(function(s){ return s.latitude && s.longitude; });
+  if (!hasCoord.length) return;
+  var bounds = new kakao.maps.LatLngBounds();
+  hasCoord.forEach(function(s) {
+    var pos = new kakao.maps.LatLng(s.latitude, s.longitude);
+    bounds.extend(pos);
+    var content = [
+      '<div style="display:flex;flex-direction:column;align-items:center">',
+        '<div data-sid="' + s.station_id + '" style="background:#0a1628;color:#bef264;border-radius:20px;',
+          'padding:6px 14px;font-size:12px;font-weight:700;white-space:nowrap;',
+          'box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;border:2px solid #84cc16">',
+          s.station_name + ' · ' + s.remaining_quantity + '회',
+        '</div>',
+        '<div style="width:0;height:0;border-left:6px solid transparent;',
+          'border-right:6px solid transparent;border-top:7px solid #0a1628;margin:0 auto"></div>',
+      '</div>'
+    ].join('');
+    var overlay = new kakao.maps.CustomOverlay({ position: pos, content: content, yAnchor: 1.0 });
+    overlay.setMap(couponMap);
+    couponOverlays.push(overlay);
+  });
+  try { couponMap.setBounds(bounds, 80); } catch(e) {}
+}
+
+/* 핀 클릭 → 주유소 상세 */
+document.addEventListener('click', function(e) {
+  var t = e.target.closest('[data-sid]');
+  if (t && document.getElementById('couponMapWrap').style.display !== 'none') {
+    location.href = '/my-coupons/' + t.getAttribute('data-sid');
+  }
+});
+
+function renderCouponList(stations) {
+  var el = document.getElementById('couponListWrap');
+  if (!stations.length) {
+    el.innerHTML = '<div class="card text-center py-14"><i class="fas fa-ticket-alt text-5xl mb-4" style="color:#dde3ef"></i>'
+      + '<p class="mb-1 font-medium" style="color:#4a5568">보유한 쿠폰이 없습니다</p>'
+      + '<p class="text-sm mb-5" style="color:#8e9ab4">주유소에서 쿠폰을 구매해보세요</p>'
+      + '<a href="/stations" class="btn btn-primary" style="width:auto;display:inline-block;padding:12px 28px">주유소 찾기</a></div>';
+    return;
+  }
+  el.innerHTML = stations.map(function(st) {
+    var naviBtn = (st.latitude && st.longitude)
+      ? '<button data-navi-lat="' + st.latitude + '" data-navi-lng="' + st.longitude
+        + '" data-navi-name="' + st.station_name.replace(/"/g,'&quot;') + '"'
+        + ' onclick="openNaviFromBtn(this)"'
+        + ' class="btn btn-sm mt-3 w-full flex items-center justify-center gap-2" style="background:#FEE500;color:#3C1E1E;border:none">'
+        + '<i class="fas fa-diamond-turn-right"></i> 카카오맵 길찾기</button>'
+      : '';
+    return '<div class="card mb-3 fade-in" style="border:1px solid #eef1f7">'
+      + '<a href="/my-coupons/' + st.station_id + '" class="flex items-center justify-between">'
+        + '<div class="flex-1 min-w-0">'
+          + '<h3 class="font-semibold truncate" style="color:#1a202c">' + st.station_name + '</h3>'
+          + '<p class="text-xs mt-0.5 truncate" style="color:#8e9ab4">' + st.address + '</p>'
+        + '</div>'
+        + '<div class="text-right ml-3 flex-shrink-0">'
+          + '<p class="text-2xl font-bold" style="color:#65a30d">' + st.remaining_quantity + '</p>'
+          + '<p class="text-xs" style="color:#8e9ab4">회 남음</p>'
+        + '</div>'
+      + '</a>'
+      + naviBtn
+      + '</div>';
+  }).join('');
+}
+
+function openNaviFromBtn(el) {
+  var name = el.getAttribute('data-navi-name');
+  var lat  = el.getAttribute('data-navi-lat');
+  var lng  = el.getAttribute('data-navi-lng');
+  window.open('https://map.kakao.com/link/to/' + encodeURIComponent(name) + ',' + lat + ',' + lng, '_blank');
+}
+
+function initCouponMap() {
+  couponMap = new kakao.maps.Map(document.getElementById('couponMap'), {
+    center: new kakao.maps.LatLng(37.5665, 126.9780),
+    level: 8
+  });
+}
+
+window.addEventListener('DOMContentLoaded', async function() {
   if (!requireAuth('customer')) return;
+  /* 카카오맵 동적 로드 */
+  var sc = document.createElement('script');
+  sc.type = 'text/javascript';
+  sc.src = '//dapi.kakao.com/v2/maps/sdk.js?appkey=3ee65ceda136e8b4d9cfbabc8c6c6bce&autoload=false';
+  sc.onload = function() { kakao.maps.load(initCouponMap); };
+  document.head.appendChild(sc);
+
   try {
-    const r=await API.get('/coupons/my'); const stations=r.stations||[];
-    const el=document.getElementById('content');
-    if (!stations.length) {
-      el.innerHTML='<div class="card text-center py-14"><i class="fas fa-ticket-alt text-5xl mb-4" style="color:#dde3ef"></i><p class="mb-1 font-medium" style="color:#4a5568">보유한 쿠폰이 없습니다</p><p class="text-sm mb-5" style="color:#8e9ab4">주유소에서 쿠폰을 구매해보세요</p><a href="/stations" class="btn btn-primary" style="width:auto;display:inline-block;padding:12px 28px">주유소 찾기</a></div>';
-      return;
-    }
-    el.innerHTML=stations.map(st=>'<a href="/my-coupons/'+st.station_id+'" class="card block mb-3 fade-in" style="border:1px solid #eef1f7"><div class="flex items-center justify-between"><div><h3 class="font-semibold" style="color:#1a202c">'+st.station_name+'</h3><p class="text-xs mt-0.5" style="color:#8e9ab4">'+st.address+'</p></div><div class="text-right ml-3 flex-shrink-0"><p class="text-2xl font-bold" style="color:#65a30d">'+st.remaining_quantity+'</p><p class="text-xs" style="color:#8e9ab4">회 남음</p></div></div></a>').join('');
-  } catch { document.getElementById('content').innerHTML='<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>'; }
+    var r = await API.get('/coupons/my');
+    allStations = r.stations || [];
+    var total = allStations.reduce(function(s,x){ return s + x.remaining_quantity; }, 0);
+    if (total > 0) document.getElementById('couponTotalBadge').textContent = '총 ' + total + '회 사용 가능';
+
+    /* 목록 먼저 렌더 (지도는 SDK 로드 후 자동) */
+    renderCouponList(allStations);
+
+    /* 지도 마커는 SDK 로드 완료 후 */
+    var waitMap = setInterval(function() {
+      if (couponMap) {
+        clearInterval(waitMap);
+        renderCouponMarkers(allStations);
+      }
+    }, 200);
+
+  } catch(e) {
+    document.getElementById('couponListWrap').innerHTML = '<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>';
+  }
 });
 </script>
 `)

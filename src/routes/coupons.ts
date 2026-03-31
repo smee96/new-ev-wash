@@ -142,7 +142,7 @@ coupons.get('/my', authMiddleware, requireRole('customer'), async (c) => {
   const purchases = await c.env.DB.prepare(
     `SELECT p.id, p.quantity, p.unit_price, p.total_amount, p.remaining_uses, p.status, p.created_at,
             c.title as coupon_title, c.wash_count, c.description,
-            s.id as station_id, s.station_name, s.address, s.qr_code
+            s.id as station_id, s.station_name, s.address, s.qr_code, s.latitude, s.longitude
      FROM coupon_purchases p
      JOIN coupons c ON p.coupon_id = c.id
      JOIN stations s ON p.station_id = s.id
@@ -162,6 +162,8 @@ coupons.get('/my', authMiddleware, requireRole('customer'), async (c) => {
         station_name: p.station_name,
         address: p.address,
         qr_code: p.qr_code,
+        latitude: p.latitude,
+        longitude: p.longitude,
         remaining_quantity: 0,
         purchases: []
       })

@@ -34,29 +34,6 @@ export function customerHomePage(): string {
   </div>
 
   <div class="px-4 -mt-4 space-y-4">
-    <!-- 빠른 메뉴 -->
-    <div class="card">
-      <p class="text-xs font-semibold mb-3" style="color:#8e9ab4">빠른 메뉴</p>
-      <div class="grid grid-cols-4 gap-2">
-        <a href="/stations" class="flex flex-col items-center gap-1.5 py-3 rounded-xl" style="background:#f4f7fb">
-          <i class="fas fa-map-marker-alt text-xl" style="color:#84cc16"></i>
-          <span class="text-xs font-semibold" style="color:#1a2f5e">주유소</span>
-        </a>
-        <a href="/my-coupons" class="flex flex-col items-center gap-1.5 py-3 rounded-xl" style="background:#f4f7fb">
-          <i class="fas fa-ticket-alt text-xl" style="color:#84cc16"></i>
-          <span class="text-xs font-semibold" style="color:#1a2f5e">내 쿠폰</span>
-        </a>
-        <a href="/my-refunds" class="flex flex-col items-center gap-1.5 py-3 rounded-xl" style="background:#f4f7fb">
-          <i class="fas fa-undo-alt text-xl" style="color:#84cc16"></i>
-          <span class="text-xs font-semibold" style="color:#1a2f5e">환불내역</span>
-        </a>
-        <a href="/guide" class="flex flex-col items-center gap-1.5 py-3 rounded-xl" style="background:#f4f7fb">
-          <i class="fas fa-question-circle text-xl" style="color:#84cc16"></i>
-          <span class="text-xs font-semibold" style="color:#1a2f5e">이용안내</span>
-        </a>
-      </div>
-    </div>
-
     <!-- 사용 가능한 내 쿠폰 -->
     <div>
       <div class="flex items-center justify-between mb-2">
@@ -96,15 +73,6 @@ export function customerHomePage(): string {
           <p class="text-xs mt-0.5" style="color:rgba(255,255,255,.5)">현장에서 스캔</p>
         </div>
       </div>
-    </div>
-
-    <!-- 최근 이용 주유소 -->
-    <div id="recentSection" class="hidden">
-      <div class="flex items-center justify-between mb-2">
-        <h2 class="font-bold" style="color:#1a202c">최근 이용한 주유소</h2>
-        <a href="/stations" class="text-xs" style="color:#84cc16">전체보기</a>
-      </div>
-      <div id="recentList"></div>
     </div>
 
     <!-- 비로그인 CTA -->
@@ -176,16 +144,6 @@ window.addEventListener('DOMContentLoaded', async () => {
       if (stations.length > 3) {
         listEl.innerHTML += '<a href="/my-coupons" class="block text-center text-xs py-2" style="color:#84cc16">+ ' + (stations.length - 3) + '개 더보기</a>';
       }
-      // 최근 이용 주유소 (쿠폰 구매한 주유소들)
-      document.getElementById('recentSection').classList.remove('hidden');
-      document.getElementById('recentList').innerHTML = stations.slice(0, 2).map(st =>
-        '<a href="/stations/' + st.station_id + '" class="card block mb-2 fade-in" style="border:1px solid #eef1f7">'
-        + '<div class="flex items-center justify-between">'
-          + '<div><p class="font-semibold" style="color:#1a202c">' + st.station_name + '</p>'
-          + '<p class="text-xs mt-0.5" style="color:#8e9ab4">' + st.address + '</p></div>'
-          + '<span class="text-xs px-2 py-1 rounded-lg ml-2" style="background:#f0ffd4;color:#65a30d">쿠폰 구매</span>'
-        + '</div></a>'
-      ).join('');
     }
   } catch {}
 });
@@ -278,23 +236,29 @@ function getLocation() {
       if (myMarker) myMarker.setMap(null);
       if (myCircle) myCircle.setMap(null);
       var pos = new kakao.maps.LatLng(lat, lng);
-      myMarker = new kakao.maps.Marker({
-        map: map, position: pos,
-        image: new kakao.maps.MarkerImage(
-          'https://t1.daumcdn.net/localimg/localimages/07/mapapidoc/markerStar.png',
-          new kakao.maps.Size(24, 35)
-        )
+      /* 내 위치 마커 - 파란 원 스타일 */
+      myMarker = new kakao.maps.CustomOverlay({
+        map: map, position: pos, yAnchor: 0.5,
+        content: '<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;'
+          + 'border:3px solid #fff;box-shadow:0 0 0 3px rgba(59,130,246,.35)"></div>'
       });
       myCircle = new kakao.maps.Circle({
         map: map, center: pos, radius: 1000,
-        strokeWeight:1, strokeColor:'#84cc16', strokeOpacity:0.5,
-        fillColor:'#bef264', fillOpacity:0.07
+        strokeWeight:1, strokeColor:'#3b82f6', strokeOpacity:0.4,
+        fillColor:'#3b82f6', fillOpacity:0.05
       });
       map.setCenter(pos);
       map.setLevel(5);
+      showToast('내 위치를 찾았습니다', 'success');
       loadStations('latitude=' + lat + '&longitude=' + lng);
     },
-    function() { showToast('위치 권한이 필요합니다','warn'); }
+    function(err) {
+      var msg = err.code === 1 ? '위치 권한을 허용해주세요'
+              : err.code === 2 ? '위치를 확인할 수 없습니다'
+              : '위치 요청 시간이 초과됐습니다';
+      showToast(msg, 'warn');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
   );
 }
 
@@ -308,29 +272,16 @@ function renderMarkers(list) {
     if (!s.latitude || !s.longitude) return;
     var pos = new kakao.maps.LatLng(s.latitude, s.longitude);
     bounds.extend(pos);
-    // data-* 속성으로 넘겨 JS 안에서 encodeURIComponent 호출
-    var distText = (s.distance != null) ? ' ' + s.distance.toFixed(1) + 'km' : '';
-    var safeName = s.station_name.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    var distText = (s.distance != null) ? ' · ' + s.distance.toFixed(1) + 'km' : '';
     var content = [
       '<div style="display:flex;flex-direction:column;align-items:center">',
-        '<div data-sid="' + s.id + '" style="background:#1a2f5e;color:#bef264;border-radius:20px;padding:5px 11px;',
-          'font-size:11px;font-weight:700;white-space:nowrap;box-shadow:0 2px 8px rgba(0,0,0,.25);',
-          'cursor:pointer;border:2px solid #bef264">',
+        '<div data-sid="' + s.id + '" style="background:#1a2f5e;color:#bef264;border-radius:20px;',
+          'padding:6px 14px;font-size:12px;font-weight:700;white-space:nowrap;',
+          'box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;border:2px solid #bef264">',
           s.station_name + distText,
         '</div>',
-        '<div style="display:flex;gap:4px;margin-top:4px">',
-          '<a href="/stations/' + s.id + '" style="background:#fff;border:1px solid #e2e8f0;',
-            'border-radius:8px;padding:2px 8px;font-size:10px;font-weight:600;color:#1a2f5e;',
-            'text-decoration:none;box-shadow:0 1px 3px rgba(0,0,0,.1)">상세</a>',
-          '<span data-lat="' + s.latitude + '" data-lng="' + s.longitude + '"',
-            ' data-name="' + safeName + '"',
-            ' onclick="openKakaoNavi(this)"',
-            ' style="background:#FEE500;border:1px solid #f0d900;border-radius:8px;',
-            'padding:2px 8px;font-size:10px;font-weight:600;color:#3C1E1E;',
-            'cursor:pointer;box-shadow:0 1px 3px rgba(0,0,0,.1)">길찾기</span>',
-        '</div>',
-        '<div style="width:0;height:0;border-left:5px solid transparent;',
-          'border-right:5px solid transparent;border-top:6px solid #1a2f5e;margin:0 auto"></div>',
+        '<div style="width:0;height:0;border-left:6px solid transparent;',
+          'border-right:6px solid transparent;border-top:7px solid #1a2f5e;margin:0 auto"></div>',
       '</div>'
     ].join('');
     var overlay = new kakao.maps.CustomOverlay({ position: pos, content: content, yAnchor: 1.0 });
@@ -347,14 +298,6 @@ document.addEventListener('click', function(e) {
   var t = e.target.closest('[data-sid]');
   if (t) { location.href = '/stations/' + t.getAttribute('data-sid'); }
 });
-
-/* ── 카카오맵 길찾기 (런타임에서 encodeURIComponent) ── */
-function openKakaoNavi(el) {
-  var name = el.getAttribute('data-name');
-  var lat  = el.getAttribute('data-lat');
-  var lng  = el.getAttribute('data-lng');
-  window.open('https://map.kakao.com/link/to/' + encodeURIComponent(name) + ',' + lat + ',' + lng, '_blank');
-}
 
 /* ── 목록 렌더 ── */
 function renderList(list) {

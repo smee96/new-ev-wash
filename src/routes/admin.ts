@@ -150,6 +150,24 @@ admin.post('/applications/:id/approve', async (c) => {
   ).bind(id).first<any>()
   if (!app) return c.json({ error: '신청을 찾을 수 없거나 이미 처리되었습니다.' }, 404)
 
+  // 좌표 없으면 카카오 Geocoding으로 자동 변환
+  let finalLat = app.latitude
+  let finalLng = app.longitude
+  if ((!finalLat || !finalLng) && app.address) {
+    const kakaoKey = c.env.KAKAO_REST_API_KEY
+    if (kakaoKey) {
+      try {
+        const url = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(app.address)}`
+        const geoRes = await fetch(url, { headers: { Authorization: `KakaoAK ${kakaoKey}` } })
+        if (geoRes.ok) {
+          const geoData = await geoRes.json() as any
+          const doc = geoData.documents?.[0]
+          if (doc) { finalLat = parseFloat(doc.y); finalLng = parseFloat(doc.x) }
+        }
+      } catch {}
+    }
+  }
+
   // 주유소 생성 + QR코드 발급
   const qrCode = generateId()
   const stationResult = await c.env.DB.prepare(
@@ -160,7 +178,7 @@ admin.post('/applications/:id/approve', async (c) => {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     app.id, app.owner_id, app.station_name, app.address, app.address_detail,
-    app.latitude, app.longitude, app.phone, app.car_wash_type, app.business_reg_number,
+    finalLat, finalLng, app.phone, app.car_wash_type, app.business_reg_number,
     app.bank_name, app.account_number, app.account_holder, qrCode
   ).run()
 

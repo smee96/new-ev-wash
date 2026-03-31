@@ -6,6 +6,7 @@ export type Env = {
   JWT_SECRET: string
   TOSS_CLIENT_KEY: string
   TOSS_SECRET_KEY: string
+  KAKAO_REST_API_KEY: string
   KAKAO_CLIENT_ID: string
   KAKAO_CLIENT_SECRET: string
   NAVER_CLIENT_ID: string

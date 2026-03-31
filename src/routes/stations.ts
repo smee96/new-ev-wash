@@ -9,6 +9,26 @@ type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
 
 const stations = new Hono<AppEnv>()
 
+// 카카오 주소→좌표 변환 (서버사이드)
+async function geocodeAddress(address: string, apiKey: string): Promise<{ lat: number; lng: number } | null> {
+  try {
+    const url = `https://dapi.kakao.com/v2/local/search/address.json?query=${encodeURIComponent(address)}`
+    const res = await fetch(url, {
+      headers: { Authorization: `KakaoAK ${apiKey}` }
+    })
+    if (!res.ok) return null
+    const data = await res.json() as any
+    const doc = data.documents?.[0]
+    if (!doc) return null
+    const lat = parseFloat(doc.y)
+    const lng = parseFloat(doc.x)
+    if (isNaN(lat) || isNaN(lng)) return null
+    return { lat, lng }
+  } catch {
+    return null
+  }
+}
+
 // ============ 공개 API ============
 
 // 주유소 검색 (위치 기반 + 키워드)
@@ -119,6 +139,17 @@ stations.post('/apply', authMiddleware, requireRole('station_owner'), async (c) 
     return c.json({ error: '이미 심사 중인 신청이 있습니다.' }, 400)
   }
 
+  // 주소 → 좌표 자동 변환
+  let finalLat = latitude || null
+  let finalLng = longitude || null
+  if ((!finalLat || !finalLng) && address) {
+    const kakaoKey = c.env.KAKAO_REST_API_KEY
+    if (kakaoKey) {
+      const coords = await geocodeAddress(address, kakaoKey)
+      if (coords) { finalLat = coords.lat; finalLng = coords.lng }
+    }
+  }
+
   const result = await c.env.DB.prepare(
     `INSERT INTO station_applications 
      (owner_id, station_name, address, address_detail, latitude, longitude, phone,
@@ -127,7 +158,7 @@ stations.post('/apply', authMiddleware, requireRole('station_owner'), async (c) 
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
   ).bind(
     user.userId, station_name, address, address_detail || null,
-    latitude || null, longitude || null, phone || null,
+    finalLat, finalLng, phone || null,
     car_wash_type || 'automatic', business_reg_number,
     business_reg_image_key || null, bank_name, account_number, account_holder,
     account_image_key || null

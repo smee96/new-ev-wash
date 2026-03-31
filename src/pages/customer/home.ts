@@ -33,7 +33,7 @@ export function customerHomePage(): string {
     </a>
   </div>
 
-  <div class="px-4 -mt-4 space-y-4">
+  <div class="px-4 pt-5 space-y-4">
     <!-- 사용 가능한 내 쿠폰 -->
     <div>
       <div class="flex items-center justify-between mb-2">
@@ -158,23 +158,15 @@ export function stationListPage(): string {
   const kakaoHead = '';
   return htmlPage('주유소 찾기', `
 <style>
-#mapWrap { position:relative; width:100%; height:260px; }
+#mapWrap { width:100%; height:calc(100vh - 180px); }
 #map { width:100%; height:100%; }
-.map-overlay-btn {
-  position:absolute; z-index:10; background:#fff;
-  border:1px solid #e2e8f0; border-radius:10px;
-  padding:7px 13px; font-size:12px; font-weight:600;
-  color:#1a2f5e; box-shadow:0 2px 6px rgba(0,0,0,.12);
-  cursor:pointer; display:flex; align-items:center; gap:5px;
-}
-.loc-btn  { bottom:10px; left:10px; }
-.map-toggle { bottom:10px; right:10px; }
+#listWrap { display:none; }
 </style>
 
-<div class="min-h-screen pb-24">
+<div class="min-h-screen pb-24" style="display:flex;flex-direction:column">
   <!-- 검색바 -->
   <div class="bg-white sticky top-0 z-50 px-4 pt-3 pb-2 border-b" style="border-color:#eef1f7;padding-top:max(12px,env(safe-area-inset-top))">
-    <div class="flex gap-2">
+    <div class="flex gap-2 mb-2">
       <div class="relative flex-1">
         <input id="si" type="search" placeholder="주유소명 또는 지역 검색" class="input pl-10"
           style="background:#f4f7fb;font-size:15px"
@@ -185,14 +177,20 @@ export function stationListPage(): string {
         <i class="fas fa-location-dot" style="color:#84cc16"></i>내 위치
       </button>
     </div>
+    <!-- 지도/목록 전환 탭 -->
+    <div class="flex rounded-xl overflow-hidden" style="border:1px solid #eef1f7">
+      <button id="tabMap" onclick="showMap()" class="flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5" style="background:#1a2f5e;color:#bef264">
+        <i class="fas fa-map"></i> 지도
+      </button>
+      <button id="tabList" onclick="showList()" class="flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5" style="background:#fff;color:#8e9ab4">
+        <i class="fas fa-list"></i> 목록
+      </button>
+    </div>
   </div>
 
   <!-- 카카오맵 -->
   <div id="mapWrap">
     <div id="map"></div>
-    <button class="map-overlay-btn map-toggle" onclick="toggleView()">
-      <i id="toggleIcon" class="fas fa-list"></i><span id="toggleText">목록</span>
-    </button>
   </div>
 
   <!-- 주유소 목록 -->
@@ -211,12 +209,26 @@ export function stationListPage(): string {
 <script>
 let map, overlays=[], myMarker=null, myCircle=null, mapVisible=true, dt;
 
-/* ── 토글 ── */
-function toggleView() {
-  mapVisible = !mapVisible;
-  document.getElementById('mapWrap').style.display = mapVisible ? 'block' : 'none';
-  document.getElementById('toggleIcon').className = mapVisible ? 'fas fa-list' : 'fas fa-map';
-  document.getElementById('toggleText').textContent  = mapVisible ? '목록' : '지도';
+/* ── 지도/목록 탭 전환 ── */
+function showMap() {
+  document.getElementById('mapWrap').style.display = 'block';
+  document.getElementById('listWrap').style.display = 'none';
+  document.getElementById('tabMap').style.background = '#1a2f5e';
+  document.getElementById('tabMap').style.color = '#bef264';
+  document.getElementById('tabList').style.background = '#fff';
+  document.getElementById('tabList').style.color = '#8e9ab4';
+  mapVisible = true;
+  /* 지도 크기 재계산 (숨겼다 보이면 렌더 틀어짐) */
+  if (map) setTimeout(function(){ map.relayout(); }, 50);
+}
+function showList() {
+  document.getElementById('mapWrap').style.display = 'none';
+  document.getElementById('listWrap').style.display = 'block';
+  document.getElementById('tabList').style.background = '#1a2f5e';
+  document.getElementById('tabList').style.color = '#bef264';
+  document.getElementById('tabMap').style.background = '#fff';
+  document.getElementById('tabMap').style.color = '#8e9ab4';
+  mapVisible = false;
 }
 
 /* ── 검색 ── */

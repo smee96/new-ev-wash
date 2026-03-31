@@ -7,6 +7,8 @@ import {
   getRefundMethodNotice,
   calcRefundAmountPerUse,
   callTossCancel,
+  fetchTossPayment,
+  getTossErrorMessage,
   isTossTestPayment,
   normalizePaymentMethod,
 } from './coupon-utils'
@@ -526,7 +528,32 @@ coupons.post('/refund/:purchaseId', authMiddleware, requireRole('customer'), asy
 
     if (isRealPayment) {
       try {
-        const { ok, data } = await callTossCancel(secretKey, purchase.payment_key, refundAmount, reason)
+        // 부분취소 가능 여부 사전 확인 (isPartialCancelable)
+        if (refundUses < purchase.remaining_uses) {
+          // 부분 환불인 경우 결제 조회로 isPartialCancelable 확인
+          const paymentInfo = await fetchTossPayment(secretKey, purchase.payment_key)
+          if (paymentInfo.ok && paymentInfo.data?.isPartialCancelable === false) {
+            await c.env.DB.prepare(
+              `UPDATE refund_requests SET status='failed', toss_error_code='NOT_ALLOWED_PARTIAL_REFUND',
+               toss_error_message='카드사 정책상 부분취소 불가', updated_at=?, processed_at=? WHERE id=?`
+            ).bind(now, now, refundRequestId).run()
+            return c.json({
+              error: getTossErrorMessage('NOT_ALLOWED_PARTIAL_REFUND'),
+              error_code: 'NOT_ALLOWED_PARTIAL_REFUND',
+            }, 400)
+          }
+        }
+
+        // 멱등성 키: refundRequestId 기반으로 중복 취소 방지
+        const idempotencyKey = `refund-${refundRequestId}-${purchase.payment_key.slice(-8)}`
+
+        const { ok, data } = await callTossCancel(
+          secretKey,
+          purchase.payment_key,
+          refundAmount,
+          reason,
+          idempotencyKey
+        )
         if (ok) {
           tossOk = true
           const cancels = data.cancels || []
@@ -551,8 +578,10 @@ coupons.post('/refund/:purchaseId', authMiddleware, requireRole('customer'), asy
          updated_at=?, processed_at=? WHERE id=?`
       ).bind(tossErrorCode, tossErrorMessage, now, now, refundRequestId).run()
 
+      // 에러코드별 사용자 친화적 메시지
+      const userErrorMsg = getTossErrorMessage(tossErrorCode, tossErrorMessage || undefined)
       return c.json({
-        error: `환불 처리 실패: ${tossErrorMessage || '카드사 오류'}. 고객센터에 문의해주세요.`,
+        error: userErrorMsg,
         error_code: tossErrorCode,
       }, 400)
     }

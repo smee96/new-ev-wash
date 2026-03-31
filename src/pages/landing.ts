@@ -661,31 +661,52 @@ body { background: #f4f7fb; color: #1a202c; }
   color: #fff;
 }
 
-/* 탭 */
+/* 탭 영역 - 히어로 아래 눈에 띄게 */
+.tab-section {
+  background: #fff;
+  padding: 20px 16px;
+  border-bottom: 1px solid #eef1f7;
+  position: sticky;
+  top: 52px;
+  z-index: 50;
+  box-shadow: 0 2px 12px rgba(10,22,40,.08);
+}
+.tab-section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #8e9ab4;
+  text-align: center;
+  margin-bottom: 10px;
+}
 .tab-bar {
   display: flex;
-  background: #0a1628;
-  padding: 0 20px 14px;
-  gap: 8px;
+  gap: 10px;
+  max-width: 480px;
+  margin: 0 auto;
 }
 .tab-btn {
   flex: 1;
-  padding: 10px 0;
-  border-radius: 12px;
-  font-size: 14px;
-  font-weight: 700;
+  padding: 16px 0;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 800;
   cursor: pointer;
-  border: none;
+  border: 2px solid transparent;
   transition: all .2s;
   letter-spacing: -0.01em;
 }
 .tab-btn.active {
   background: #bef264;
   color: #0a1628;
+  border-color: #a3e635;
+  box-shadow: 0 4px 16px rgba(132,204,22,.35);
 }
 .tab-btn:not(.active) {
-  background: rgba(255,255,255,.08);
-  color: rgba(255,255,255,.5);
+  background: #f4f7fb;
+  color: #6b7280;
+  border-color: #e2e8f0;
 }
 
 /* 히어로 배너 */
@@ -880,18 +901,23 @@ body { background: #f4f7fb; color: #1a202c; }
 .tab-panel.active { display: block; }
 </style>
 
-<!-- 헤더 + 탭 -->
+<!-- 헤더 (탭 없음) -->
 <div class="guide-header">
   <div class="guide-header-inner">
     <a href="/"><i class="fas fa-arrow-left"></i></a>
     <h1>이용방법</h1>
   </div>
+</div>
+
+<!-- 공통 탭 바 - 두 패널 위에 단 한 번만 -->
+<div class="tab-section">
+  <div class="tab-section-label">이용 대상 선택</div>
   <div class="tab-bar">
-    <button class="tab-btn active" onclick="switchTab('customer',this)" id="tab-customer">
-      <i class="fas fa-user" style="margin-right:6px"></i>이용 고객
+    <button class="tab-btn active" onclick="switchTab('customer')" id="tab-customer">
+      <i class="fas fa-user" style="margin-right:7px"></i>이용 고객
     </button>
-    <button class="tab-btn" onclick="switchTab('owner',this)" id="tab-owner">
-      <i class="fas fa-gas-pump" style="margin-right:6px"></i>주유소 사장님
+    <button class="tab-btn" onclick="switchTab('owner')" id="tab-owner">
+      <i class="fas fa-gas-pump" style="margin-right:7px"></i>주유소 사장님
     </button>
   </div>
 </div>
@@ -901,7 +927,7 @@ body { background: #f4f7fb; color: #1a202c; }
   <div class="guide-hero">
     <span class="hero-icon">🚗</span>
     <h2>세차 쿠폰, 이렇게 쓰세요</h2>
-    <p>앱에서 쿠폰을 구매하고<br>주유소에서 QR 한 번으로 끝!</p>
+    <p>앱에서 쿠폰을 구매하고<br>주유소 QR코드를 찍으면 끝!</p>
   </div>
 
   <div class="guide-body">
@@ -928,15 +954,15 @@ body { background: #f4f7fb; color: #1a202c; }
       <div class="step-content">
         <h3>쿠폰 구매</h3>
         <p>원하는 세차 쿠폰을 선택하고 카드·계좌이체 등 편한 결제 수단으로 결제하세요.</p>
-        <span class="tip"><i class="fas fa-tag"></i>한 번에 여러 매 구매할수록 할인!</span>
       </div>
     </div>
 
     <div class="step-card">
       <div class="step-num">4</div>
       <div class="step-content">
-        <h3>주유소 방문 후 QR 제시</h3>
-        <p>내 쿠폰 메뉴에서 해당 주유소 쿠폰을 열고, 직원에게 QR코드를 보여주세요. 직원이 스캔하면 사용 완료!</p>
+        <h3>주유소 방문 후 QR코드 스캔</h3>
+        <p>주유소에 비치된 <b style="color:#0a1628">EV-Wash QR코드</b>를 내 휴대폰 카메라로 직접 찍으세요. 스캔과 동시에 쿠폰이 차감되고 사용 완료!</p>
+        <span class="tip"><i class="fas fa-camera"></i>QR코드는 주유소 입구·세차기 옆에 비치됩니다</span>
       </div>
     </div>
 
@@ -994,10 +1020,10 @@ body { background: #f4f7fb; color: #1a202c; }
 
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">
-        QR코드를 직원이 스캔하지 않고도 사용 처리가 되나요?
+        QR코드는 어떻게 스캔하나요?
         <i class="fas fa-chevron-down"></i>
       </div>
-      <div class="faq-a">아니요, 반드시 주유소 직원이 EV-Wash 관리 화면에서 QR코드를 스캔해야 사용 처리됩니다. 임의로 차감되지 않으니 안심하세요.</div>
+      <div class="faq-a">별도 앱 없이 스마트폰 기본 카메라로 주유소에 비치된 QR코드를 찍으면 됩니다. 찍는 순간 자동으로 쿠폰이 차감되고 사용 완료 화면이 나타납니다.</div>
     </div>
 
     <div class="cta-wrap">
@@ -1046,8 +1072,9 @@ body { background: #f4f7fb; color: #1a202c; }
     <div class="step-card">
       <div class="step-num">4</div>
       <div class="step-content">
-        <h3>QR코드로 사용 처리</h3>
-        <p>고객이 방문하면 주유소 관리 → QR 탭의 스캔 화면으로 고객 쿠폰을 스캔하세요. 실시간으로 사용 처리됩니다.</p>
+        <h3>QR코드 종이 출력·비치</h3>
+        <p>주유소 관리 → QR 탭에서 내 주유소 전용 QR코드를 출력하세요. 세차기 옆이나 입구에 붙여두면 고객이 직접 스캔합니다.</p>
+        <span class="tip"><i class="fas fa-print"></i>QR코드는 언제든지 재출력 가능합니다</span>
       </div>
     </div>
 
@@ -1128,11 +1155,11 @@ body { background: #f4f7fb; color: #1a202c; }
 </div>
 
 <script>
-function switchTab(id, btn) {
+function switchTab(id) {
   document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
-  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
   document.getElementById('panel-'+id).classList.add('active');
-  btn.classList.add('active');
+  document.getElementById('tab-customer').classList.toggle('active', id==='customer');
+  document.getElementById('tab-owner').classList.toggle('active', id==='owner');
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 function toggleFaq(el) {
@@ -1142,6 +1169,11 @@ function toggleFaq(el) {
   el.closest('.tab-panel').querySelectorAll('.faq-q').forEach(function(q){ q.classList.remove('open'); });
   if (!isOpen) { ans.classList.add('open'); el.classList.add('open'); }
 }
+// 초기 탭 상태 설정
+document.addEventListener('DOMContentLoaded', function(){
+  document.getElementById('tab-customer').classList.add('active');
+  document.getElementById('tab-owner').classList.remove('active');
+});
 </script>
 `)
 }

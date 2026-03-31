@@ -108,15 +108,8 @@ function renderCouponList(stations) {
     return;
   }
   el.innerHTML = stations.map(function(st) {
-    var naviBtn = (st.latitude && st.longitude)
-      ? '<button data-navi-lat="' + st.latitude + '" data-navi-lng="' + st.longitude
-        + '" data-navi-name="' + st.station_name.replace(/"/g,'&quot;') + '"'
-        + ' onclick="openNaviFromBtn(this)"'
-        + ' class="btn btn-sm mt-3 w-full flex items-center justify-center gap-2" style="background:#FEE500;color:#3C1E1E;border:none">'
-        + '<i class="fas fa-diamond-turn-right"></i> 카카오맵 길찾기</button>'
-      : '';
-    return '<div class="card mb-3 fade-in" style="border:1px solid #eef1f7">'
-      + '<a href="/my-coupons/' + st.station_id + '" class="flex items-center justify-between">'
+    return '<a href="/my-coupons/' + st.station_id + '" class="card block mb-3 fade-in" style="border:1px solid #eef1f7">'
+      + '<div class="flex items-center justify-between">'
         + '<div class="flex-1 min-w-0">'
           + '<h3 class="font-semibold truncate" style="color:#1a202c">' + st.station_name + '</h3>'
           + '<p class="text-xs mt-0.5 truncate" style="color:#8e9ab4">' + st.address + '</p>'
@@ -125,18 +118,12 @@ function renderCouponList(stations) {
           + '<p class="text-2xl font-bold" style="color:#65a30d">' + st.remaining_quantity + '</p>'
           + '<p class="text-xs" style="color:#8e9ab4">회 남음</p>'
         + '</div>'
-      + '</a>'
-      + naviBtn
-      + '</div>';
+      + '</div>'
+      + '</a>';
   }).join('');
 }
 
-function openNaviFromBtn(el) {
-  var name = el.getAttribute('data-navi-name');
-  var lat  = el.getAttribute('data-navi-lat');
-  var lng  = el.getAttribute('data-navi-lng');
-  window.open('https://map.kakao.com/link/to/' + encodeURIComponent(name) + ',' + lat + ',' + lng, '_blank');
-}
+
 
 function initCouponMap() {
   couponMap = new kakao.maps.Map(document.getElementById('couponMap'), {
@@ -300,15 +287,27 @@ async function loadDetail() {
     const s=r.station, purchases=r.purchases||[];
     document.getElementById('pageTitle').textContent=s?.station_name||'쿠폰';
     const totalUses=purchases.reduce((sum,p)=>sum+p.remaining_uses,0);
+
+    // 지도 HTML (주유소 탭 상세와 동일)
+    var mapHtml='';
+    if(s?.latitude && s?.longitude){
+      mapHtml='<div id="detailMap" style="width:100%;height:190px;border-radius:14px;overflow:hidden;margin-top:12px"></div>'
+        +'<button onclick="openCouponNavi()" class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold mt-2" style="background:#FEE500;color:#3C1E1E">'
+        +'<i class="fas fa-diamond-turn-right"></i>카카오맵 길찾기</button>';
+    }
+
     document.getElementById('content').innerHTML=
       '<div class="card mb-4" style="border-left:4px solid #84cc16">'
       +'<h2 class="font-bold text-base" style="color:#1a202c">'+s?.station_name+'</h2>'
-      +'<p class="text-xs mt-1" style="color:#8e9ab4">'+s?.address+'</p>'
-      +'<div class="mt-4">'
+      +'<p class="text-xs mt-1" style="color:#8e9ab4"><i class="fas fa-map-marker-alt mr-1" style="color:#84cc16"></i>'+s?.address+'</p>'
+      +(s?.phone?'<p class="text-xs mt-1" style="color:#8e9ab4"><i class="fas fa-phone mr-1" style="color:#84cc16"></i><a href="tel:'+s.phone+'" style="color:#1a2f5e;font-weight:600">'+s.phone+'</a></p>':'')
+      +'<div class="mt-3 pt-3" style="border-top:1px solid #eef1f7">'
       +'<p class="text-xs mb-1" style="color:#8e9ab4">사용 가능 횟수</p>'
       +'<p class="text-4xl font-bold" style="color:#65a30d">'+totalUses+'<span class="text-lg ml-1">회</span></p>'
-      +(totalUses===0?'<p class="text-xs mt-2" style="color:#8e9ab4">아래 구매 내역에서 사용 완료된 쿠폰을 확인하세요</p>':'<p class="text-xs mt-2" style="color:#8e9ab4">아래 구매 내역에서 쿠폰을 선택해 QR 사용하세요</p>')
-      +'</div></div>'
+      +(totalUses===0?'<p class="text-xs mt-1" style="color:#8e9ab4">구매 내역에서 사용 완료 쿠폰을 확인하세요</p>':'<p class="text-xs mt-1" style="color:#8e9ab4">아래에서 쿠폰을 선택해 QR 사용하세요</p>')
+      +'</div>'
+      +mapHtml
+      +'</div>'
       +'<h3 class="section-title">구매 내역</h3>'
       +purchases.map(p=>'<div class="card mb-3 fade-in">'
         +'<div class="flex justify-between items-start mb-3">'
@@ -323,7 +322,41 @@ async function loadDetail() {
           :'')
         +'</div>'
       ).join('');
+
+    // 카카오맵 초기화
+    if(s?.latitude && s?.longitude){
+      window._couponStationLat=s.latitude;
+      window._couponStationLng=s.longitude;
+      window._couponStationName=s.station_name;
+      (function(lat,lng,name){
+        function drawMap(){
+          var el=document.getElementById('detailMap');
+          if(!el)return;
+          var pos=new kakao.maps.LatLng(lat,lng);
+          var dm=new kakao.maps.Map(el,{center:pos,level:4});
+          new kakao.maps.Marker({map:dm,position:pos});
+          new kakao.maps.CustomOverlay({
+            map:dm,position:pos,yAnchor:2.8,
+            content:'<div style="background:#1a2f5e;color:#bef264;border-radius:16px;padding:4px 10px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.2);border:2px solid #bef264;white-space:nowrap">'+name+'</div>'
+          });
+        }
+        if(typeof kakao!=='undefined'&&kakao.maps&&kakao.maps.Map){drawMap();}
+        else{
+          var sc=document.createElement('script');
+          sc.src='//dapi.kakao.com/v2/maps/sdk.js?appkey=3ee65ceda136e8b4d9cfbabc8c6c6bce&autoload=false';
+          sc.onload=function(){kakao.maps.load(drawMap);};
+          document.head.appendChild(sc);
+        }
+      })(s.latitude,s.longitude,s.station_name);
+    }
   } catch { document.getElementById('content').innerHTML='<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>'; }
+}
+function openCouponNavi(){
+  var url='https://map.kakao.com/link/to/'
+    +encodeURIComponent(window._couponStationName||'')
+    +','+(window._couponStationLat||'')
+    +','+(window._couponStationLng||'');
+  window.open(url,'_blank');
 }
 function openQR() {
   openModal('qrModal');

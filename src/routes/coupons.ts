@@ -193,7 +193,7 @@ coupons.get('/my/:stationId', authMiddleware, requireRole('customer'), async (c)
   ).bind(user.userId, stationId).all()
 
   const station = await c.env.DB.prepare(
-    `SELECT id, station_name, address, phone, qr_code, is_active, is_closed FROM stations WHERE id = ?`
+    `SELECT id, station_name, address, phone, qr_code, latitude, longitude, is_active, is_closed FROM stations WHERE id = ?`
   ).bind(stationId).first()
 
   return c.json({ station, purchases: purchases.results })

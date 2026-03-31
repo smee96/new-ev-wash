@@ -212,6 +212,9 @@ html, body { height: 100%; }
 
   <div class="bottom-area">
     <a href="/login" class="start-btn">시작하기</a>
+    <a href="/guide" style="display:block;width:100%;padding:15px;margin-top:10px;background:rgba(255,255,255,.07);color:rgba(255,255,255,.75);border:1.5px solid rgba(255,255,255,.12);border-radius:14px;font-size:15px;font-weight:700;text-align:center;text-decoration:none;letter-spacing:0.01em;">
+      <i class="fas fa-book-open" style="margin-right:8px;color:#84cc16"></i>이용방법 보기
+    </a>
 
     <div class="footer">
       <div class="footer-company">
@@ -615,5 +618,530 @@ ${DOC_STYLE}
     <p style="font-size:13px;color:#8e9ab4;">(주)모빈 &nbsp;|&nbsp; 사업자등록번호: 통신판매업신고 2018-서울서초-0006호</p>
   </div>
 </div>
+`)
+}
+
+// ============================================================
+// 이용방법 가이드 페이지
+// ============================================================
+export function guidePage(): string {
+  return landingHtml('이용방법 - EV-Wash', `
+<style>
+body { background: #f4f7fb; color: #1a202c; }
+
+.guide-header {
+  background: #0a1628;
+  padding: 0;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding-top: env(safe-area-inset-top);
+}
+.guide-header-inner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+}
+.guide-header-inner a {
+  color: rgba(255,255,255,0.7);
+  text-decoration: none;
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,.08);
+  flex-shrink: 0;
+}
+.guide-header-inner h1 {
+  font-size: 17px;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* 탭 */
+.tab-bar {
+  display: flex;
+  background: #0a1628;
+  padding: 0 20px 14px;
+  gap: 8px;
+}
+.tab-btn {
+  flex: 1;
+  padding: 10px 0;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  border: none;
+  transition: all .2s;
+  letter-spacing: -0.01em;
+}
+.tab-btn.active {
+  background: #bef264;
+  color: #0a1628;
+}
+.tab-btn:not(.active) {
+  background: rgba(255,255,255,.08);
+  color: rgba(255,255,255,.5);
+}
+
+/* 히어로 배너 */
+.guide-hero {
+  background: linear-gradient(135deg, #0a1628 0%, #1a2f5e 100%);
+  padding: 32px 20px 36px;
+  text-align: center;
+}
+.guide-hero .hero-icon {
+  font-size: 52px;
+  margin-bottom: 14px;
+  display: block;
+  filter: drop-shadow(0 0 18px rgba(132,204,22,.4));
+}
+.guide-hero h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #bef264;
+  margin-bottom: 8px;
+  letter-spacing: -0.02em;
+}
+.guide-hero p {
+  font-size: 14px;
+  color: rgba(255,255,255,.55);
+  line-height: 1.7;
+}
+
+/* 단계 카드 */
+.guide-body {
+  padding: 20px 16px 40px;
+  max-width: 480px;
+  margin: 0 auto;
+}
+.section-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #84cc16;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+  margin-top: 24px;
+}
+.section-label:first-child { margin-top: 0; }
+
+.step-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 18px 16px;
+  margin-bottom: 10px;
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  box-shadow: 0 1px 4px rgba(10,22,40,.06);
+  border: 1px solid #eef1f7;
+}
+.step-num {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  background: #f0ffd4;
+  color: #65a30d;
+  font-size: 15px;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.step-content h3 {
+  font-size: 15px;
+  font-weight: 700;
+  color: #0a1628;
+  margin-bottom: 4px;
+}
+.step-content p {
+  font-size: 13px;
+  color: #6b7280;
+  line-height: 1.65;
+}
+.step-content .tip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 12px;
+  color: #92400e;
+  background: #fef3c7;
+  border: 1px solid #fde68a;
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+.step-content .tip i { font-size: 11px; }
+
+/* 포인트 카드 */
+.point-card {
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px;
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 1px 4px rgba(10,22,40,.06);
+  border: 1px solid #eef1f7;
+}
+.point-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.point-card h3 { font-size: 14px; font-weight: 700; color: #0a1628; margin-bottom: 3px; }
+.point-card p { font-size: 13px; color: #6b7280; line-height: 1.55; }
+
+/* FAQ */
+.faq-item {
+  background: #fff;
+  border-radius: 14px;
+  margin-bottom: 8px;
+  border: 1px solid #eef1f7;
+  overflow: hidden;
+}
+.faq-q {
+  padding: 16px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #1a202c;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
+}
+.faq-q i { color: #8e9ab4; font-size: 12px; transition: transform .2s; flex-shrink: 0; }
+.faq-q.open i { transform: rotate(180deg); }
+.faq-a {
+  padding: 0 16px;
+  font-size: 13px;
+  color: #4a5568;
+  line-height: 1.7;
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height .3s ease, padding .3s;
+}
+.faq-a.open {
+  max-height: 300px;
+  padding: 0 16px 16px;
+}
+
+/* CTA 버튼 */
+.cta-wrap {
+  margin-top: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.cta-btn-main {
+  display: block;
+  width: 100%;
+  padding: 16px;
+  background: #bef264;
+  color: #0a1628;
+  border: none;
+  border-radius: 14px;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  box-shadow: 0 4px 16px rgba(132,204,22,.3);
+}
+.cta-btn-sub {
+  display: block;
+  width: 100%;
+  padding: 15px;
+  background: #fff;
+  color: #1a2f5e;
+  border: 1.5px solid #dde3ef;
+  border-radius: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  text-align: center;
+  text-decoration: none;
+}
+
+/* 탭 패널 */
+.tab-panel { display: none; }
+.tab-panel.active { display: block; }
+</style>
+
+<!-- 헤더 + 탭 -->
+<div class="guide-header">
+  <div class="guide-header-inner">
+    <a href="/"><i class="fas fa-arrow-left"></i></a>
+    <h1>이용방법</h1>
+  </div>
+  <div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('customer',this)" id="tab-customer">
+      <i class="fas fa-user" style="margin-right:6px"></i>이용 고객
+    </button>
+    <button class="tab-btn" onclick="switchTab('owner',this)" id="tab-owner">
+      <i class="fas fa-gas-pump" style="margin-right:6px"></i>주유소 사장님
+    </button>
+  </div>
+</div>
+
+<!-- ==================== 고객 탭 ==================== -->
+<div id="panel-customer" class="tab-panel active">
+  <div class="guide-hero">
+    <span class="hero-icon">🚗</span>
+    <h2>세차 쿠폰, 이렇게 쓰세요</h2>
+    <p>앱에서 쿠폰을 구매하고<br>주유소에서 QR 한 번으로 끝!</p>
+  </div>
+
+  <div class="guide-body">
+    <p class="section-label">이용 순서</p>
+
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>회원가입 / 로그인</h3>
+        <p>이메일 또는 카카오·네이버 소셜 계정으로 30초 만에 가입하세요.</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>주유소 찾기</h3>
+        <p>내 위치 기반 또는 지역명·주유소명으로 원하는 주유소를 검색하세요.</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>쿠폰 구매</h3>
+        <p>원하는 세차 쿠폰을 선택하고 카드·계좌이체 등 편한 결제 수단으로 결제하세요.</p>
+        <span class="tip"><i class="fas fa-tag"></i>한 번에 여러 매 구매할수록 할인!</span>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>주유소 방문 후 QR 제시</h3>
+        <p>내 쿠폰 메뉴에서 해당 주유소 쿠폰을 열고, 직원에게 QR코드를 보여주세요. 직원이 스캔하면 사용 완료!</p>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:28px">알아두면 좋은 점</p>
+
+    <div class="point-card">
+      <div class="point-icon" style="background:#f0ffd4"><i class="fas fa-infinity" style="color:#65a30d"></i></div>
+      <div>
+        <h3>유효기간 없음</h3>
+        <p>구매한 쿠폰은 유효기간이 없어요. 천천히 사용하세요.</p>
+      </div>
+    </div>
+
+    <div class="point-card">
+      <div class="point-icon" style="background:#eff6ff"><i class="fas fa-rotate-left" style="color:#2563eb"></i></div>
+      <div>
+        <h3>언제든지 환불 가능</h3>
+        <p>미사용 쿠폰은 언제든지 환불 신청할 수 있어요.</p>
+      </div>
+    </div>
+
+    <div class="point-card">
+      <div class="point-icon" style="background:#fff5f5"><i class="fas fa-shield-alt" style="color:#ef4444"></i></div>
+      <div>
+        <h3>폐업 시 전액 환불</h3>
+        <p>주유소가 폐업하면 미사용 쿠폰은 자동으로 전액 환불됩니다.</p>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:28px">자주 묻는 질문</p>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        쿠폰 한 장으로 여러 번 사용할 수 있나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">쿠폰마다 포함된 세차 횟수가 다릅니다. 예를 들어 3회권은 한 장으로 세 번 방문해 쓸 수 있어요. 쿠폰 상세에서 남은 횟수를 확인하세요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        환불하면 얼마나 돌려받나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">실제 결제 금액 ÷ 총 횟수 × 남은 횟수로 계산됩니다. 카드 결제는 3~4 영업일, 계좌이체는 즉시 처리돼요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        다른 주유소 쿠폰으로 사용할 수 있나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">아니요, 쿠폰은 구매한 주유소에서만 사용할 수 있어요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        QR코드를 직원이 스캔하지 않고도 사용 처리가 되나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">아니요, 반드시 주유소 직원이 EV-Wash 관리 화면에서 QR코드를 스캔해야 사용 처리됩니다. 임의로 차감되지 않으니 안심하세요.</div>
+    </div>
+
+    <div class="cta-wrap">
+      <a href="/login" class="cta-btn-main">지금 시작하기</a>
+      <a href="/stations" class="cta-btn-sub"><i class="fas fa-map-marker-alt" style="margin-right:6px"></i>주유소 둘러보기</a>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== 사장님 탭 ==================== -->
+<div id="panel-owner" class="tab-panel">
+  <div class="guide-hero">
+    <span class="hero-icon">⛽</span>
+    <h2>입점부터 정산까지</h2>
+    <p>간단한 신청으로 쿠폰을 등록하고<br>고객을 유치해 매출을 올리세요</p>
+  </div>
+
+  <div class="guide-body">
+    <p class="section-label">입점 신청 순서</p>
+
+    <div class="step-card">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h3>사장님 계정 만들기</h3>
+        <p>회원가입 시 '주유소 사장님'을 선택하고 이메일로 가입하세요.</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h3>주유소 등록 신청</h3>
+        <p>대시보드 → 주유소 등록 신청에서 주유소명, 주소, 사업자등록번호, 정산 계좌를 입력하세요.</p>
+        <span class="tip"><i class="fas fa-clock"></i>심사 1~2 영업일 소요</span>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h3>심사 승인 후 쿠폰 등록</h3>
+        <p>승인 완료 알림 메일을 받으면 주유소 관리 → 쿠폰 탭에서 쿠폰을 만드세요. 가격·횟수·설명을 자유롭게 설정할 수 있어요.</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h3>QR코드로 사용 처리</h3>
+        <p>고객이 방문하면 주유소 관리 → QR 탭의 스캔 화면으로 고객 쿠폰을 스캔하세요. 실시간으로 사용 처리됩니다.</p>
+      </div>
+    </div>
+
+    <div class="step-card">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <h3>정산 받기</h3>
+        <p>고객이 실제로 사용한 쿠폰 금액에서 플랫폼 수수료를 제한 금액이 등록된 계좌로 정산됩니다.</p>
+        <span class="tip"><i class="fas fa-info-circle"></i>미사용 쿠폰 금액은 플랫폼 보관 후 환불 시 고객에게 반환</span>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:28px">운영 팁</p>
+
+    <div class="point-card">
+      <div class="point-icon" style="background:#f0ffd4"><i class="fas fa-ticket-alt" style="color:#65a30d"></i></div>
+      <div>
+        <h3>다양한 쿠폰 구성 추천</h3>
+        <p>1회권 외에 3회·5회 묶음권을 만들면 고객 재방문율이 올라가요.</p>
+      </div>
+    </div>
+
+    <div class="point-card">
+      <div class="point-icon" style="background:#eff6ff"><i class="fas fa-percent" style="color:#2563eb"></i></div>
+      <div>
+        <h3>할인율 설정으로 노출 우선순위 올리기</h3>
+        <p>정가 대비 할인된 쿠폰은 고객 검색 목록에서 더 눈에 띄어요.</p>
+      </div>
+    </div>
+
+    <div class="point-card">
+      <div class="point-icon" style="background:#fff5f5"><i class="fas fa-chart-line" style="color:#ef4444"></i></div>
+      <div>
+        <h3>사용 내역으로 매출 관리</h3>
+        <p>주유소 관리 → 사용내역 탭에서 일별·쿠폰별 사용 현황을 실시간으로 확인하세요.</p>
+      </div>
+    </div>
+
+    <p class="section-label" style="margin-top:28px">자주 묻는 질문</p>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        수수료는 얼마인가요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">현재 고객이 실제 사용한 금액의 15%입니다. 미사용 쿠폰에는 수수료가 발생하지 않아요. 수수료율은 사전 공지 후 변경될 수 있습니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        주유소가 여러 개면 어떻게 하나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">한 계정으로 여러 주유소를 등록할 수 있어요. 대시보드에서 '주유소 추가 등록' 버튼을 눌러 신청하세요.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        신청이 반려되면 어떻게 되나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">반려 사유가 대시보드에 표시됩니다. 내용을 수정한 후 재신청 버튼을 눌러 다시 신청하시면 됩니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        폐업하면 고객 쿠폰은 어떻게 되나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">관리자가 폐업 처리하는 순간 미사용 쿠폰이 고객에게 전액 자동 환불됩니다. 사전에 고객에게 안내해 주세요.</div>
+    </div>
+
+    <div class="cta-wrap">
+      <a href="/owner/login" class="cta-btn-main">사장님 로그인</a>
+      <a href="/owner/apply" class="cta-btn-sub"><i class="fas fa-plus" style="margin-right:6px"></i>주유소 등록 신청하기</a>
+    </div>
+  </div>
+</div>
+
+<script>
+function switchTab(id, btn) {
+  document.querySelectorAll('.tab-panel').forEach(function(p){ p.classList.remove('active'); });
+  document.querySelectorAll('.tab-btn').forEach(function(b){ b.classList.remove('active'); });
+  document.getElementById('panel-'+id).classList.add('active');
+  btn.classList.add('active');
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+function toggleFaq(el) {
+  var ans = el.nextElementSibling;
+  var isOpen = ans.classList.contains('open');
+  el.closest('.tab-panel').querySelectorAll('.faq-a').forEach(function(a){ a.classList.remove('open'); });
+  el.closest('.tab-panel').querySelectorAll('.faq-q').forEach(function(q){ q.classList.remove('open'); });
+  if (!isOpen) { ans.classList.add('open'); el.classList.add('open'); }
+}
+</script>
 `)
 }

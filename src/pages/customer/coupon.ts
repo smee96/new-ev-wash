@@ -259,3 +259,70 @@ async function confirmRefund() {
 </script>
 `)
 }
+
+export function myRefundHistoryPage(): string {
+  return htmlPage('환불 내역', `
+<div class="min-h-screen pb-24">
+  <div class="page-header">
+    <button onclick="history.back()" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+    <span class="page-header-title">환불 내역</span>
+  </div>
+  <div id="content" class="p-4">
+    <div class="card text-center py-12">
+      <i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i>
+    </div>
+  </div>
+</div>
+<nav class="bottom-nav">
+  <a href="/home"><i class="fas fa-home"></i>홈</a>
+  <a href="/stations"><i class="fas fa-gas-pump"></i>주유소</a>
+  <a href="/my-coupons" class="active"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
+  <a href="/mypage"><i class="fas fa-user"></i>마이</a>
+</nav>
+<script>
+const STATUS_LABEL = {
+  completed: { text: '환불 완료', cls: 'badge-green' },
+  processing: { text: '처리 중', cls: 'badge-yellow' },
+  pending:    { text: '대기 중', cls: 'badge-yellow' },
+  failed:     { text: '환불 실패', cls: 'badge-red' },
+  cancelled:  { text: '취소됨', cls: 'badge-gray' },
+};
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!requireAuth('customer')) return;
+  const el = document.getElementById('content');
+  try {
+    const r = await API.get('/coupons/my/refunds/history?page=1');
+    const refunds = r.refunds || [];
+    if (!refunds.length) {
+      el.innerHTML = '<div class="card text-center py-14"><i class="fas fa-receipt text-5xl mb-4" style="color:#dde3ef"></i><p class="font-medium mb-1" style="color:#4a5568">환불 내역이 없습니다</p><p class="text-sm" style="color:#8e9ab4">환불 신청 내역이 여기에 표시됩니다</p></div>';
+      return;
+    }
+    el.innerHTML = refunds.map(item => {
+      const s = STATUS_LABEL[item.status] || { text: item.status, cls: 'badge-gray' };
+      const isFailed = item.status === 'failed';
+      const date = item.created_at ? item.created_at.replace('T',' ').slice(0,16) : '-';
+      const unitAmt = item.refund_uses > 0 ? Math.round(item.refund_amount / item.refund_uses) : 0;
+      return '<div class="card mb-3 fade-in" style="border:1px solid '+(isFailed?'#fee2e2':'#eef1f7')+'">'
+        +'<div class="flex items-start justify-between mb-2">'
+          +'<div class="flex-1 min-w-0">'
+            +'<p class="font-semibold truncate" style="color:#1a202c">'+(item.coupon_title||'-')+'</p>'
+            +'<p class="text-xs mt-0.5" style="color:#8e9ab4">'+(item.station_name||'-')+'</p>'
+          +'</div>'
+          +'<span class="badge '+s.cls+' flex-shrink-0 ml-2">'+s.text+'</span>'
+        +'</div>'
+        +'<div class="flex justify-between items-center text-sm mt-2 pt-2" style="border-top:1px solid #f0f2f8">'
+          +'<span style="color:#64748b">'+item.refund_uses+'회 × '+unitAmt.toLocaleString()+'원</span>'
+          +'<span class="font-bold" style="color:'+(isFailed?'#ef4444':'#65a30d')+'">'+item.refund_amount.toLocaleString()+'원</span>'
+        +'</div>'
+        +(isFailed ? '<div class="mt-2 p-2 rounded text-xs" style="background:#fef2f2;color:#dc2626"><i class="fas fa-exclamation-circle mr-1"></i>환불에 실패했습니다. 다시 신청하거나 고객센터로 문의해주세요.</div>' : '')
+        +'<p class="text-xs mt-2" style="color:#b0b8cc">'+date+'</p>'
+        +(item.method_notice ? '<p class="text-xs mt-1" style="color:#8e9ab4"><i class="fas fa-info-circle mr-1"></i>'+item.method_notice+'</p>' : '')
+      +'</div>';
+    }).join('');
+  } catch(e) {
+    el.innerHTML = '<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>';
+  }
+});
+</script>
+`)
+}

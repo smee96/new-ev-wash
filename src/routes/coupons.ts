@@ -147,6 +147,10 @@ coupons.get('/my', authMiddleware, requireRole('customer'), async (c) => {
      JOIN coupons c ON p.coupon_id = c.id
      JOIN stations s ON p.station_id = s.id
      WHERE p.user_id = ? AND p.status IN ('active', 'partial_refunded') AND p.remaining_uses > 0
+       AND NOT EXISTS (
+         SELECT 1 FROM refund_requests rr
+         WHERE rr.purchase_id = p.id AND rr.status IN ('pending', 'processing')
+       )
      ORDER BY p.created_at DESC`
   ).bind(user.userId).all<any>()
 
@@ -491,11 +495,26 @@ coupons.post('/refund/:purchaseId', authMiddleware, requireRole('customer'), asy
       : 0
 
     // 이미 진행 중인 환불 요청 확인
+    // - failed/cancelled 건은 재신청 허용
+    // - processing 건도 30분 초과 시 stuck 처리하여 재신청 허용
     const pendingRefund = await c.env.DB.prepare(
-      `SELECT id FROM refund_requests WHERE purchase_id = ? AND status IN ('pending', 'processing')`
-    ).bind(purchaseId).first()
+      `SELECT id, status, created_at FROM refund_requests
+       WHERE purchase_id = ? AND status IN ('pending', 'processing')
+       ORDER BY created_at DESC LIMIT 1`
+    ).bind(purchaseId).first<any>()
+
     if (pendingRefund) {
-      return c.json({ error: '이미 처리 중인 환불 요청이 있습니다. 잠시 후 확인해주세요.' }, 400)
+      // processing이 30분 이상 지났으면 stuck으로 간주 → failed 처리 후 재신청 허용
+      const createdAt = new Date(pendingRefund.created_at + ' UTC').getTime()
+      const isStuck = (Date.now() - createdAt) > 30 * 60 * 1000  // 30분
+      if (isStuck) {
+        await c.env.DB.prepare(
+          `UPDATE refund_requests SET status='failed', toss_error_code='TIMEOUT',
+           toss_error_message='30분 초과 미처리 - 자동 실패 처리', updated_at=?, processed_at=? WHERE id=?`
+        ).bind(kstNow(), kstNow(), pendingRefund.id).run()
+      } else {
+        return c.json({ error: '이미 처리 중인 환불 요청이 있습니다. 잠시 후 다시 시도해주세요.' }, 400)
+      }
     }
 
     const now = kstNow()

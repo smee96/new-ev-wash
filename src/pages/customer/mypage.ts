@@ -25,6 +25,10 @@ export function myPage(): string {
         <span class="text-base" style="color:#1a202c"><i class="fas fa-ticket-alt w-6 mr-2" style="color:#84cc16"></i>내 쿠폰</span>
         <i class="fas fa-chevron-right text-sm" style="color:#dde3ef"></i>
       </a>
+      <a href="/my-refunds" class="flex items-center justify-between py-3.5 border-b" style="border-color:#f4f7fb">
+        <span class="text-base" style="color:#1a202c"><i class="fas fa-undo-alt w-6 mr-2" style="color:#84cc16"></i>환불 내역</span>
+        <i class="fas fa-chevron-right text-sm" style="color:#dde3ef"></i>
+      </a>
       <button onclick="showProfileEditModal()" class="w-full flex items-center justify-between py-3.5 border-b" style="border-color:#f4f7fb">
         <span class="text-base" style="color:#1a202c"><i class="fas fa-user-edit w-6 mr-2" style="color:#84cc16"></i>프로필 수정</span>
         <i class="fas fa-chevron-right text-sm" style="color:#dde3ef"></i>

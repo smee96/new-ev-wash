@@ -175,7 +175,7 @@ async function loadDetail() {
         +(p.remaining_uses>0
           ?'<div class="flex gap-2">'
            +'<button onclick="currentPurchaseId='+p.id+';openQR()" class="btn btn-outline btn-sm" style="flex:1">QR 사용</button>'
-           +'<button onclick="openRefundModal('+p.id+','+p.remaining_uses+','+p.total_amount+')" class="btn btn-danger btn-sm" style="flex:1">환불</button>'
+           +'<button onclick="openRefundModal('+p.id+','+p.remaining_uses+','+p.total_amount+','+p.unit_price+','+p.wash_count+')" class="btn btn-danger btn-sm" style="flex:1">환불</button>'
            +'</div>'
           :'')
         +'</div>'
@@ -223,13 +223,14 @@ function closeUseConfirm(){
   if(_clockTimer){clearInterval(_clockTimer);_clockTimer=null;}
   closeModal('useConfirmModal');
 }
-function openRefundModal(purchaseId, remaining, totalAmount) {
-  const unitAmount = Math.floor(totalAmount / remaining);
-  _refundData = { purchaseId, remaining, totalAmount, unitAmount, qty: remaining };
+function openRefundModal(purchaseId, remaining, totalAmount, unitPrice, washCount) {
+  // 회당 환불단가 = 장당가격 ÷ 장당횟수 (서버 calcRefundAmountPerUse 와 동일 로직)
+  const unitAmount = Math.floor(unitPrice / washCount);
+  _refundData = { purchaseId, remaining, totalAmount, unitAmount, qty: 1 };
   document.getElementById('refundSub').textContent = '최대 '+remaining+'회 환불 가능';
-  document.getElementById('refundQtyNum').textContent = remaining;
+  document.getElementById('refundQtyNum').textContent = 1;
   document.getElementById('refundUnitLabel').textContent = formatPrice(unitAmount);
-  document.getElementById('refundTotalLabel').textContent = formatPrice(unitAmount * remaining);
+  document.getElementById('refundTotalLabel').textContent = formatPrice(unitAmount * 1);
   openModal('refundModal');
 }
 function changeRefundQty(d) {

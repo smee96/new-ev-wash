@@ -960,9 +960,9 @@ body { background: #f4f7fb; color: #1a202c; }
     <div class="step-card">
       <div class="step-num">4</div>
       <div class="step-content">
-        <h3>주유소 방문 후 QR코드 스캔</h3>
-        <p>주유소에 비치된 <b style="color:#0a1628">EV-Wash QR코드</b>를 내 휴대폰 카메라로 직접 찍으세요. 스캔과 동시에 쿠폰이 차감되고 사용 완료!</p>
-        <span class="tip"><i class="fas fa-camera"></i>QR코드는 주유소 입구·세차기 옆에 비치됩니다</span>
+        <h3>주유소 방문 후 앱에서 QR 스캔</h3>
+        <p>주유소에 도착하면 <b style="color:#0a1628">내 쿠폰 → 해당 주유소 선택 → 구매 내역에서 'QR 사용' 버튼</b>을 눌러 카메라를 활성화하세요.<br>주유소에 부착된 QR코드를 카메라로 비추면 자동으로 인식되며 쿠폰이 차감됩니다.</p>
+        <span class="tip"><i class="fas fa-exclamation-circle"></i>스마트폰 기본 카메라로는 사용 처리가 되지 않습니다. 반드시 앱 내 'QR 사용' 버튼을 이용하세요</span>
       </div>
     </div>
 
@@ -1020,10 +1020,18 @@ body { background: #f4f7fb; color: #1a202c; }
 
     <div class="faq-item">
       <div class="faq-q" onclick="toggleFaq(this)">
-        QR코드는 어떻게 스캔하나요?
+        일반 카메라 앱으로 QR을 찍으면 안 되나요?
         <i class="fas fa-chevron-down"></i>
       </div>
-      <div class="faq-a">별도 앱 없이 스마트폰 기본 카메라로 주유소에 비치된 QR코드를 찍으면 됩니다. 찍는 순간 자동으로 쿠폰이 차감되고 사용 완료 화면이 나타납니다.</div>
+      <div class="faq-a">스마트폰 기본 카메라로 QR코드를 찍으면 링크가 열리지만 쿠폰 사용 처리는 되지 않습니다. 쿠폰 차감은 로그인된 EV-Wash 앱 안에서만 가능하기 때문에, 반드시 <b>내 쿠폰 → 주유소 선택 → 'QR 사용' 버튼</b>을 통해 카메라를 열어야 합니다.</div>
+    </div>
+
+    <div class="faq-item">
+      <div class="faq-q" onclick="toggleFaq(this)">
+        QR 사용 버튼은 어디에 있나요?
+        <i class="fas fa-chevron-down"></i>
+      </div>
+      <div class="faq-a">하단 메뉴 '내 쿠폰' → 주유소를 선택 → 구매 내역 카드에서 <b>'QR 사용'</b> 버튼을 찾을 수 있습니다. 버튼을 누르면 카메라가 자동으로 켜지고, 주유소에 부착된 QR코드를 비추면 즉시 인식됩니다.</div>
     </div>
 
     <div class="cta-wrap">

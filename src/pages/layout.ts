@@ -135,7 +135,7 @@ const API = {
 };
 function getUser() { try { return JSON.parse(localStorage.getItem('ev_user') || 'null'); } catch { return null; } }
 function setUser(token, user) { localStorage.setItem('ev_token', token); localStorage.setItem('ev_user', JSON.stringify(user)); }
-function logout() { localStorage.removeItem('ev_token'); localStorage.removeItem('ev_user'); window.location.href = '/login'; }
+function logout() { localStorage.removeItem('ev_token'); localStorage.removeItem('ev_user'); window.location.href = '/'; }
 function showToast(msg, type = 'success') {
   const el = document.getElementById('_toast') || (() => { const t = document.createElement('div'); t.id='_toast'; t.className='toast'; document.body.appendChild(t); return t; })();
   el.textContent = msg;

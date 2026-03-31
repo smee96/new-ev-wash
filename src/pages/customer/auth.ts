@@ -6,10 +6,10 @@ export function loginPage(kakaoClientId = '', naverClientId = ''): string {
 <div class="min-h-screen px-5 flex flex-col justify-center" style="padding-top:env(safe-area-inset-top);padding-bottom:env(safe-area-inset-bottom);background:#0a1628">
   <div class="w-full max-w-sm mx-auto">
     <!-- 로고 -->
-    <div class="text-center mb-10">
+    <a href="/" class="block text-center mb-10" style="text-decoration:none">
       <div style="font-size:44px;margin-bottom:12px">⚡</div>
       <h1 class="text-2xl font-bold" style="color:#bef264">EV-Wash</h1>
-    </div>
+    </a>
 
     <!-- 로그인 폼 -->
     <form onsubmit="doLogin(event)" class="space-y-3">

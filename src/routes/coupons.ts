@@ -176,29 +176,6 @@ coupons.get('/my', authMiddleware, requireRole('customer'), async (c) => {
   return c.json({ stations: Array.from(stationMap.values()) })
 })
 
-// 내 쿠폰 상세 (특정 주유소)
-coupons.get('/my/:stationId', authMiddleware, requireRole('customer'), async (c) => {
-  const user = c.get('user')
-  const stationId = c.req.param('stationId')
-
-  const purchases = await c.env.DB.prepare(
-    `SELECT p.id, p.quantity, p.unit_price, p.total_amount, p.remaining_uses,
-            p.status, p.created_at, p.refunded_amount, p.refunded_uses,
-            p.payment_method, p.toss_total_cancelled,
-            c.title as coupon_title, c.wash_count, c.discount_price
-     FROM coupon_purchases p
-     JOIN coupons c ON p.coupon_id = c.id
-     WHERE p.user_id = ? AND p.station_id = ? AND p.status NOT IN ('refunded', 'used')
-     ORDER BY p.created_at ASC`
-  ).bind(user.userId, stationId).all()
-
-  const station = await c.env.DB.prepare(
-    `SELECT id, station_name, address, phone, qr_code, latitude, longitude, is_active, is_closed FROM stations WHERE id = ?`
-  ).bind(stationId).first()
-
-  return c.json({ station, purchases: purchases.results })
-})
-
 // 구매 이력 전체
 coupons.get('/my/history/all', authMiddleware, requireRole('customer'), async (c) => {
   const user = c.get('user')
@@ -745,6 +722,29 @@ coupons.get('/my/refunds/history', authMiddleware, requireRole('customer'), asyn
   ).bind(user.userId, limit, offset).all()
 
   return c.json({ refunds: refunds.results, page, limit })
+})
+
+// 내 쿠폰 상세 (특정 주유소) - ⚠️ 반드시 /my/activity, /my/history/all, /my/refunds/history 뒤에 위치해야 함
+coupons.get('/my/:stationId', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const stationId = c.req.param('stationId')
+
+  const purchases = await c.env.DB.prepare(
+    `SELECT p.id, p.quantity, p.unit_price, p.total_amount, p.remaining_uses,
+            p.status, p.created_at, p.refunded_amount, p.refunded_uses,
+            p.payment_method, p.toss_total_cancelled,
+            c.title as coupon_title, c.wash_count, c.discount_price
+     FROM coupon_purchases p
+     JOIN coupons c ON p.coupon_id = c.id
+     WHERE p.user_id = ? AND p.station_id = ? AND p.status NOT IN ('refunded', 'used')
+     ORDER BY p.created_at ASC`
+  ).bind(user.userId, stationId).all()
+
+  const station = await c.env.DB.prepare(
+    `SELECT id, station_name, address, phone, qr_code, latitude, longitude, is_active, is_closed FROM stations WHERE id = ?`
+  ).bind(stationId).first()
+
+  return c.json({ station, purchases: purchases.results })
 })
 
 // ============================================================

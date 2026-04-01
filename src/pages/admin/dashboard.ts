@@ -56,7 +56,7 @@ ${ADMIN_NAV}
   </div>
 
   <!-- 기본 현황 카드 -->
-  <div class="grid grid-cols-3 gap-3 mb-6">
+  <div class="grid grid-cols-3 gap-3 mb-5">
     <div class="admin-card text-center">
       <div class="w-9 h-9 rounded-xl mx-auto mb-2 flex items-center justify-center stat-icon-navy">
         <i class="fas fa-users"></i>
@@ -80,104 +80,70 @@ ${ADMIN_NAV}
     </div>
   </div>
 
-  <!-- 매출 분석 탭 -->
-  <div class="admin-card mb-6" style="padding:0;overflow:hidden">
-    <!-- 탭 헤더 -->
+  <!-- 기간 탭 선택 -->
+  <div class="admin-card mb-4" style="padding:0;overflow:hidden">
     <div style="display:flex;border-bottom:1px solid #eef1f7">
-      <button class="sales-tab active" onclick="switchSalesTab('today')" id="stab-today"
-        style="flex:1;padding:12px 0;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #84cc16;color:#0a1628">오늘</button>
-      <button class="sales-tab" onclick="switchSalesTab('yesterday')" id="stab-yesterday"
-        style="flex:1;padding:12px 0;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8e9ab4">어제</button>
-      <button class="sales-tab" onclick="switchSalesTab('month')" id="stab-month"
-        style="flex:1;padding:12px 0;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8e9ab4">이번달</button>
-      <button class="sales-tab" onclick="switchSalesTab('lmonth')" id="stab-lmonth"
-        style="flex:1;padding:12px 0;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8e9ab4">지난달</button>
+      <button class="period-tab" id="ptab-today"     onclick="switchTab('today')"
+        style="flex:1;padding:11px 0;font-size:13px;font-weight:700;border:none;background:none;cursor:pointer;border-bottom:2px solid #84cc16;color:#0a1628">오늘</button>
+      <button class="period-tab" id="ptab-yesterday" onclick="switchTab('yesterday')"
+        style="flex:1;padding:11px 0;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8e9ab4">어제</button>
+      <button class="period-tab" id="ptab-month"     onclick="switchTab('month')"
+        style="flex:1;padding:11px 0;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8e9ab4">이번달</button>
+      <button class="period-tab" id="ptab-lmonth"    onclick="switchTab('lmonth')"
+        style="flex:1;padding:11px 0;font-size:13px;font-weight:600;border:none;background:none;cursor:pointer;border-bottom:2px solid transparent;color:#8e9ab4">지난달</button>
     </div>
-    <!-- 탭 패널 -->
-    <div id="spanel-today" class="sales-panel" style="padding:20px 16px">
-      <div class="sales-row-header">오늘 매출 현황</div>
-      <div class="sales-grid">
-        <div class="sales-metric">
-          <span class="sales-label">총 매출</span>
-          <span id="td-sales" class="sales-value main">-</span>
-          <span id="td-cnt" class="sales-sub">- 건</span>
+
+    <!-- ── 쿠폰 구매 (플랫폼 매출) ── -->
+    <div style="padding:16px 16px 12px">
+      <div class="section-label">
+        <i class="fas fa-shopping-cart" style="color:#2563eb;margin-right:5px"></i>
+        쿠폰 구매 <span style="color:#8e9ab4;font-weight:500;font-size:11px">플랫폼 매출</span>
+      </div>
+      <div class="metrics-row">
+        <div class="metric-box" style="background:#eff6ff">
+          <span class="metric-label" style="color:#2563eb">구매 건수</span>
+          <span id="buy-cnt"   class="metric-val" style="color:#1d4ed8">- 건</span>
         </div>
-        <div class="sales-metric">
-          <span class="sales-label">정산 예정</span>
-          <span id="td-settle" class="sales-value settle">-</span>
-          <span class="sales-sub">수수료 제외</span>
+        <div class="metric-box" style="background:#eff6ff">
+          <span class="metric-label" style="color:#2563eb">구매 금액</span>
+          <span id="buy-amt"   class="metric-val" style="color:#1d4ed8">-</span>
         </div>
-        <div class="sales-metric">
-          <span class="sales-label">플랫폼 수익</span>
-          <span id="td-fee" class="sales-value fee">-</span>
-          <span id="td-feerate" class="sales-sub">- %</span>
+        <div class="metric-box" style="background:#ecfdf5">
+          <span class="metric-label" style="color:#059669">플랫폼 수익</span>
+          <span id="buy-fee"   class="metric-val" style="color:#059669">-</span>
+          <span id="fee-badge" class="metric-sub">15%</span>
         </div>
       </div>
     </div>
-    <div id="spanel-yesterday" class="sales-panel" style="padding:20px 16px;display:none">
-      <div class="sales-row-header">어제 매출 현황</div>
-      <div class="sales-grid">
-        <div class="sales-metric">
-          <span class="sales-label">총 매출</span>
-          <span id="yd-sales" class="sales-value main">-</span>
-          <span id="yd-cnt" class="sales-sub">- 건</span>
-        </div>
-        <div class="sales-metric">
-          <span class="sales-label">정산 예정</span>
-          <span id="yd-settle" class="sales-value settle">-</span>
-          <span class="sales-sub">수수료 제외</span>
-        </div>
-        <div class="sales-metric">
-          <span class="sales-label">플랫폼 수익</span>
-          <span id="yd-fee" class="sales-value fee">-</span>
-          <span id="yd-feerate" class="sales-sub">- %</span>
-        </div>
+
+    <div style="height:1px;background:#f0f4fa;margin:0 16px"></div>
+
+    <!-- ── 세차 사용 (주유소 정산 기준) ── -->
+    <div style="padding:12px 16px 16px">
+      <div class="section-label">
+        <i class="fas fa-car-wash" style="color:#d97706;margin-right:5px"></i>
+        세차 사용 <span style="color:#8e9ab4;font-weight:500;font-size:11px">주유소 정산 지급액 기준</span>
       </div>
-    </div>
-    <div id="spanel-month" class="sales-panel" style="padding:20px 16px;display:none">
-      <div class="sales-row-header">이번달 매출 현황</div>
-      <div class="sales-grid">
-        <div class="sales-metric">
-          <span class="sales-label">총 매출</span>
-          <span id="mo-sales" class="sales-value main">-</span>
-          <span id="mo-cnt" class="sales-sub">- 건</span>
+      <div class="metrics-row">
+        <div class="metric-box" style="background:#fffbeb">
+          <span class="metric-label" style="color:#d97706">사용 건수</span>
+          <span id="use-cnt"   class="metric-val" style="color:#b45309">- 건</span>
         </div>
-        <div class="sales-metric">
-          <span class="sales-label">정산 예정</span>
-          <span id="mo-settle" class="sales-value settle">-</span>
-          <span class="sales-sub">수수료 제외</span>
+        <div class="metric-box" style="background:#fffbeb">
+          <span class="metric-label" style="color:#d97706">사용 금액</span>
+          <span id="use-amt"   class="metric-val" style="color:#b45309">-</span>
         </div>
-        <div class="sales-metric">
-          <span class="sales-label">플랫폼 수익</span>
-          <span id="mo-fee" class="sales-value fee">-</span>
-          <span id="mo-feerate" class="sales-sub">- %</span>
-        </div>
-      </div>
-    </div>
-    <div id="spanel-lmonth" class="sales-panel" style="padding:20px 16px;display:none">
-      <div class="sales-row-header">지난달 매출 현황</div>
-      <div class="sales-grid">
-        <div class="sales-metric">
-          <span class="sales-label">총 매출</span>
-          <span id="lm-sales" class="sales-value main">-</span>
-          <span id="lm-cnt" class="sales-sub">- 건</span>
-        </div>
-        <div class="sales-metric">
-          <span class="sales-label">정산 예정</span>
-          <span id="lm-settle" class="sales-value settle">-</span>
-          <span class="sales-sub">수수료 제외</span>
-        </div>
-        <div class="sales-metric">
-          <span class="sales-label">플랫폼 수익</span>
-          <span id="lm-fee" class="sales-value fee">-</span>
-          <span id="lm-feerate" class="sales-sub">- %</span>
+        <div class="metric-box" style="background:#f0fdf4">
+          <span class="metric-label" style="color:#16a34a">정산 지급액</span>
+          <span id="use-net"   class="metric-val" style="color:#15803d">-</span>
+          <span class="metric-sub">수수료 제외</span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- 미정산 잔액 -->
-  <div class="admin-card mb-6" style="background:linear-gradient(135deg,#0a1628,#1a2f5e);border:none">
+  <div class="admin-card mb-5" style="background:linear-gradient(135deg,#0a1628,#1a2f5e);border:none">
     <div style="display:flex;align-items:center;justify-content:space-between">
       <div>
         <p style="font-size:12px;color:rgba(255,255,255,.5);margin-bottom:4px">누적 미정산 (정산 대기 중)</p>
@@ -193,7 +159,7 @@ ${ADMIN_NAV}
   </div>
 
   <!-- 빠른 메뉴 -->
-  <div class="grid grid-cols-2 gap-3 mb-6">
+  <div class="grid grid-cols-2 gap-3 mb-5">
     <a href="/admin/applications" class="quick-card">
       <div class="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 stat-icon-amber">
         <i class="fas fa-file-check"></i>
@@ -214,88 +180,104 @@ ${ADMIN_NAV}
     </a>
   </div>
 
-  <!-- 주간 매출 차트 -->
+  <!-- 주간 차트 -->
   <div class="admin-card">
-    <h3 class="font-bold mb-3" style="color:#0a1628">최근 7일 매출</h3>
-    <canvas id="salesChart" height="120"></canvas>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px">
+      <h3 class="font-bold" style="color:#0a1628">최근 7일 추이</h3>
+      <div style="display:flex;gap:12px;font-size:11px">
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#2563eb;margin-right:4px"></span>구매</span>
+        <span><span style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#d97706;margin-right:4px"></span>사용</span>
+      </div>
+    </div>
+    <canvas id="salesChart" height="130"></canvas>
   </div>
 </div>
 
 <style>
-.sales-row-header { font-size:12px;font-weight:700;color:#8e9ab4;letter-spacing:0.05em;text-transform:uppercase;margin-bottom:14px; }
-.sales-grid { display:grid;grid-template-columns:repeat(3,1fr);gap:10px; }
-.sales-metric { background:#f4f7fb;border-radius:14px;padding:14px 10px;display:flex;flex-direction:column;align-items:center;gap:4px; }
-.sales-label { font-size:11px;color:#8e9ab4;font-weight:600; }
-.sales-value { font-size:15px;font-weight:800;line-height:1.2;text-align:center; }
-.sales-value.main  { color:#0a1628; }
-.sales-value.settle{ color:#2563eb; }
-.sales-value.fee   { color:#84cc16; }
-.sales-sub { font-size:11px;color:#8e9ab4; }
-@media(max-width:360px){ .sales-value{font-size:13px} }
+.section-label { font-size:12px;font-weight:700;color:#374151;margin-bottom:10px;display:flex;align-items:center; }
+.metrics-row   { display:grid;grid-template-columns:repeat(3,1fr);gap:8px; }
+.metric-box    { border-radius:12px;padding:12px 8px;display:flex;flex-direction:column;align-items:center;gap:3px; }
+.metric-label  { font-size:10px;font-weight:600; }
+.metric-val    { font-size:14px;font-weight:800;line-height:1.2;text-align:center; }
+.metric-sub    { font-size:10px;color:#8e9ab4; }
+@media(max-width:360px){ .metric-val{font-size:12px} }
 </style>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 let _r = null;
+let _chart = null;
 function fp(v){ return (v||0).toLocaleString()+'원'; }
-function switchSalesTab(tab) {
-  ['today','yesterday','month','lmonth'].forEach(t => {
-    const btn = document.getElementById('stab-'+t);
-    const panel = document.getElementById('spanel-'+t);
-    const active = t === tab;
-    panel.style.display = active ? '' : 'none';
-    btn.style.borderBottomColor = active ? '#84cc16' : 'transparent';
-    btn.style.color = active ? '#0a1628' : '#8e9ab4';
-    btn.style.fontWeight = active ? '700' : '600';
+
+const TABS = ['today','yesterday','month','lmonth'];
+function switchTab(tab) {
+  TABS.forEach(t => {
+    const btn = document.getElementById('ptab-'+t);
+    const on  = t === tab;
+    btn.style.borderBottomColor = on ? '#84cc16' : 'transparent';
+    btn.style.color      = on ? '#0a1628' : '#8e9ab4';
+    btn.style.fontWeight = on ? '700' : '600';
   });
+  if (!_r) return;
+  const p = tab === 'today'     ? { buy_cnt:_r.today_buy_cnt,     buy_amt:_r.today_buy_sales,     buy_fee:_r.today_platform_fee,  use_cnt:_r.today_use_cnt,     use_amt:_r.today_use_sales,     use_net:_r.today_net_pay }
+          : tab === 'yesterday' ? { buy_cnt:_r.yesterday_buy_cnt, buy_amt:_r.yesterday_buy_sales, buy_fee:_r.yesterday_platform_fee, use_cnt:_r.yesterday_use_cnt, use_amt:_r.yesterday_use_sales, use_net:_r.yesterday_net_pay }
+          : tab === 'month'     ? { buy_cnt:_r.month_buy_cnt,     buy_amt:_r.month_buy_sales,     buy_fee:_r.month_platform_fee,  use_cnt:_r.month_use_cnt,     use_amt:_r.month_use_sales,     use_net:_r.month_net_pay }
+          :                       { buy_cnt:_r.lmonth_buy_cnt,    buy_amt:_r.lmonth_buy_sales,    buy_fee:_r.lmonth_platform_fee, use_cnt:_r.lmonth_use_cnt,    use_amt:_r.lmonth_use_sales,    use_net:_r.lmonth_net_pay };
+  document.getElementById('buy-cnt').textContent = (p.buy_cnt||0)+'건';
+  document.getElementById('buy-amt').textContent = fp(p.buy_amt);
+  document.getElementById('buy-fee').textContent = fp(p.buy_fee);
+  document.getElementById('use-cnt').textContent = (p.use_cnt||0)+'건';
+  document.getElementById('use-amt').textContent = fp(p.use_amt);
+  document.getElementById('use-net').textContent = fp(p.use_net);
 }
-function fillSalesData(r) {
-  const fr = (r.fee_rate*100).toFixed(0);
-  // 오늘
-  document.getElementById('td-sales').textContent   = fp(r.today_sales);
-  document.getElementById('td-cnt').textContent     = (r.today_payment_count||0)+'건';
-  document.getElementById('td-settle').textContent  = fp(r.today_settle_expected);
-  document.getElementById('td-fee').textContent     = fp(r.today_platform_fee);
-  document.getElementById('td-feerate').textContent = fr+'% 수수료';
-  // 어제
-  document.getElementById('yd-sales').textContent   = fp(r.yesterday_sales);
-  document.getElementById('yd-cnt').textContent     = (r.yesterday_payment_count||0)+'건';
-  document.getElementById('yd-settle').textContent  = fp(r.yesterday_settle_expected);
-  document.getElementById('yd-fee').textContent     = fp(r.yesterday_platform_fee);
-  document.getElementById('yd-feerate').textContent = fr+'% 수수료';
-  // 이번달
-  document.getElementById('mo-sales').textContent   = fp(r.month_sales);
-  document.getElementById('mo-cnt').textContent     = (r.month_payment_count||0)+'건';
-  document.getElementById('mo-settle').textContent  = fp(r.month_settle_expected);
-  document.getElementById('mo-fee').textContent     = fp(r.month_platform_fee);
-  document.getElementById('mo-feerate').textContent = fr+'% 수수료';
-  // 지난달
-  document.getElementById('lm-sales').textContent   = fp(r.last_month_sales);
-  document.getElementById('lm-cnt').textContent     = (r.last_month_payment_count||0)+'건';
-  document.getElementById('lm-settle').textContent  = fp(r.last_month_settle_expected);
-  document.getElementById('lm-fee').textContent     = fp(r.last_month_platform_fee);
-  document.getElementById('lm-feerate').textContent = fr+'% 수수료';
-}
+
 window.addEventListener('DOMContentLoaded', async () => {
   requireAuth('admin');
   try {
     _r = await API.get('/admin/dashboard');
-    document.getElementById('stat_users').textContent         = (_r.total_users||0).toLocaleString();
-    document.getElementById('stat_stations').textContent      = (_r.total_stations||0).toLocaleString();
-    document.getElementById('stat_pending').textContent       = _r.pending_applications||0;
-    document.getElementById('stat_pending_settle').textContent= fp(_r.pending_settlement_amount);
+
+    document.getElementById('stat_users').textContent          = (_r.total_users||0).toLocaleString();
+    document.getElementById('stat_stations').textContent       = (_r.total_stations||0).toLocaleString();
+    document.getElementById('stat_pending').textContent        = _r.pending_applications||0;
+    document.getElementById('stat_pending_settle').textContent = fp(_r.pending_settlement_amount);
+    document.getElementById('fee-badge').textContent           = ((_r.fee_rate||0.15)*100).toFixed(0)+'%';
+
     if (_r.pending_applications > 0) {
       const b = document.getElementById('pendingBadge');
       if(b){ b.textContent = _r.pending_applications; b.classList.remove('hidden'); }
     }
-    fillSalesData(_r);
-    // 차트
-    const labels = (_r.weekly_sales||[]).map(d => d.day?.slice(5));
-    const data   = (_r.weekly_sales||[]).map(d => d.total||0);
-    new Chart(document.getElementById('salesChart'), {
+
+    switchTab('today');
+
+    // 최근 7일 차트 (구매 + 사용 겹쳐서)
+    const buyMap = {};
+    (_r.weekly_buy||[]).forEach(d => buyMap[d.day] = d.total||0);
+    const useMap = {};
+    (_r.weekly_use||[]).forEach(d => useMap[d.day] = d.total||0);
+
+    // 최근 7일 날짜 배열 생성
+    const days = [];
+    for(let i=6;i>=0;i--) {
+      const d = new Date(Date.now() + 9*3600000 - i*86400000);
+      days.push(d.toISOString().substring(0,10));
+    }
+    const labels   = days.map(d => d.substring(5));
+    const buyData  = days.map(d => buyMap[d]||0);
+    const useData  = days.map(d => useMap[d]||0);
+
+    _chart = new Chart(document.getElementById('salesChart'), {
       type: 'bar',
-      data: { labels, datasets:[{ label:'매출(원)', data, backgroundColor:'#84cc16', borderRadius:6 }] },
-      options: { plugins:{ legend:{display:false} }, scales:{ y:{ ticks:{ callback: v => v>=10000?(v/10000).toFixed(0)+'만':v } } } }
+      data: {
+        labels,
+        datasets: [
+          { label:'구매', data:buyData, backgroundColor:'#2563eb', borderRadius:4, barPercentage:0.4, categoryPercentage:0.8 },
+          { label:'사용', data:useData, backgroundColor:'#d97706', borderRadius:4, barPercentage:0.4, categoryPercentage:0.8 },
+        ]
+      },
+      options: {
+        plugins:{ legend:{display:false} },
+        scales:{ y:{ ticks:{ callback: v => v>=10000?(v/10000).toFixed(0)+'만':v } } }
+      }
     });
   } catch(e) { console.error(e); }
 });

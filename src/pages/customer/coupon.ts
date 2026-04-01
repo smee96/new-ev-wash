@@ -264,6 +264,7 @@ export function myCouponDetailPage(): string {
       </div>
     </div>
     <button onclick="closeUseConfirm()" class="btn btn-primary w-full" style="font-size:1rem;padding:16px">확인</button>
+    <a href="/my-history#use" onclick="closeUseConfirm()" class="block text-center mt-3 text-sm font-medium" style="color:#8e9ab4">이용 내역 보기 <i class="fas fa-arrow-right text-xs"></i></a>
   </div>
 </div>
 
@@ -541,3 +542,153 @@ window.addEventListener('DOMContentLoaded', async () => {
 </script>
 `)
 }
+
+export function myActivityPage(): string {
+  return htmlPage('이용 내역', `
+<div class="min-h-screen pb-24">
+  <div class="page-header">
+    <button onclick="history.back()" class="back-btn"><i class="fas fa-arrow-left"></i></button>
+    <span class="page-header-title">이용 내역</span>
+  </div>
+
+  <!-- 필터 탭 -->
+  <div class="px-4 pt-3 pb-0">
+    <div class="flex gap-2">
+      <button id="ftab_all"    onclick="setFilter('all')"    class="px-4 py-2 rounded-full text-sm font-bold" style="background:#0a1628;color:#fff">전체</button>
+      <button id="ftab_buy"    onclick="setFilter('buy')"    class="px-4 py-2 rounded-full text-sm font-medium" style="background:#f4f7fb;color:#8e9ab4">결제</button>
+      <button id="ftab_use"    onclick="setFilter('use')"    class="px-4 py-2 rounded-full text-sm font-medium" style="background:#f4f7fb;color:#8e9ab4">사용</button>
+      <button id="ftab_refund" onclick="setFilter('refund')" class="px-4 py-2 rounded-full text-sm font-medium" style="background:#f4f7fb;color:#8e9ab4">환불</button>
+    </div>
+  </div>
+
+  <div id="content" class="p-4 space-y-3">
+    <div class="card text-center py-12">
+      <i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i>
+    </div>
+  </div>
+  <div id="loadMoreWrap" class="px-4 pb-4 hidden">
+    <button onclick="loadMore()" class="btn btn-gray w-full">더 보기</button>
+  </div>
+</div>
+
+<nav class="bottom-nav">
+  <a href="/home"><i class="fas fa-home"></i>홈</a>
+  <a href="/stations"><i class="fas fa-gas-pump"></i>주유소</a>
+  <a href="/my-coupons"><i class="fas fa-ticket-alt"></i>내 쿠폰</a>
+  <a href="/mypage" class="active"><i class="fas fa-user"></i>마이</a>
+</nav>
+
+<script>
+let _curFilter = 'all';
+let _curPage   = 1;
+let _hasMore   = false;
+
+function setFilter(f) {
+  _curFilter = f;
+  _curPage   = 1;
+  ['all','buy','use','refund'].forEach(k => {
+    const el = document.getElementById('ftab_'+k);
+    const on = k === f;
+    el.style.background   = on ? '#0a1628' : '#f4f7fb';
+    el.style.color        = on ? '#fff'     : '#8e9ab4';
+    el.style.fontWeight   = on ? '700'      : '500';
+  });
+  document.getElementById('content').innerHTML = '<div class="card text-center py-12"><i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i></div>';
+  loadActivity(1, true);
+}
+
+const TYPE_CONFIG = {
+  buy:    { icon:'fa-shopping-cart',  bg:'#e0f2fe', iconColor:'#0284c7', label:'결제',   amtColor:'#0284c7',  amtPrefix:'-' },
+  use:    { icon:'fa-car-wash',       bg:'#dcfce7', iconColor:'#16a34a', label:'세차사용', amtColor:'#16a34a', amtPrefix:'' },
+  refund: { icon:'fa-undo-alt',       bg:'#fef3c7', iconColor:'#d97706', label:'환불',   amtColor:'#d97706',  amtPrefix:'+' },
+};
+
+const BUY_STATUS = {
+  active:           { text:'유효', cls:'badge-green' },
+  partial_refunded: { text:'일부환불', cls:'badge-yellow' },
+  refunded:         { text:'환불완료', cls:'badge-gray' },
+  used:             { text:'사용완료', cls:'badge-gray' },
+};
+const REFUND_STATUS = {
+  processing: { text:'처리중', cls:'badge-yellow' },
+  completed:  { text:'환불완료', cls:'badge-green' },
+  failed:     { text:'실패', cls:'badge-red' },
+  cancelled:  { text:'취소', cls:'badge-gray' },
+};
+
+function renderItem(item) {
+  const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.buy;
+  const dateStr = formatDateTime(item.event_at);
+  let statusBadge = '';
+  if (item.type === 'buy') {
+    const s = BUY_STATUS[item.status] || { text: item.status, cls:'badge-gray' };
+    statusBadge = '<span class="badge '+s.cls+'">'+s.text+'</span>';
+  } else if (item.type === 'refund') {
+    const s = REFUND_STATUS[item.status] || { text: item.status, cls:'badge-gray' };
+    statusBadge = '<span class="badge '+s.cls+'">'+s.text+'</span>';
+  }
+  let subLine = '';
+  if (item.type === 'buy')    subLine = (item.quantity||1)+'매 구매';
+  if (item.type === 'use')    subLine = (item.wash_count_used||1)+'회 세차';
+  if (item.type === 'refund') subLine = (item.quantity||1)+'회 환불신청';
+
+  const amtStr = (cfg.amtPrefix ? cfg.amtPrefix : '') + (item.amount||0).toLocaleString() + '원';
+
+  return '<div class="card flex items-center gap-3" style="padding:14px 16px">'
+    +'<div class="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center" style="background:'+cfg.bg+'">'
+      +'<i class="fas '+cfg.icon+' text-base" style="color:'+cfg.iconColor+'"></i>'
+    +'</div>'
+    +'<div class="flex-1 min-w-0">'
+      +'<div class="flex items-center gap-2 mb-0.5">'
+        +'<span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="background:'+cfg.bg+';color:'+cfg.iconColor+'">'+cfg.label+'</span>'
+        + statusBadge
+      +'</div>'
+      +'<p class="font-semibold text-sm truncate" style="color:#1a202c">'+( item.coupon_title||'-')+'</p>'
+      +'<p class="text-xs truncate" style="color:#8e9ab4">'+( item.station_name||'-')+' · '+subLine+'</p>'
+    +'</div>'
+    +'<div class="text-right flex-shrink-0">'
+      +'<p class="font-bold text-sm" style="color:'+cfg.amtColor+'">'+amtStr+'</p>'
+      +'<p class="text-xs mt-0.5" style="color:#b0b8cc">'+dateStr+'</p>'
+    +'</div>'
+  +'</div>';
+}
+
+async function loadActivity(page, reset) {
+  const el = document.getElementById('content');
+  try {
+    const r = await API.get('/coupons/my/activity?type='+_curFilter+'&page='+page);
+    const items = r.items || [];
+    _hasMore = (page * r.limit) < r.total;
+    document.getElementById('loadMoreWrap').classList.toggle('hidden', !_hasMore);
+    if (!items.length && reset) {
+      el.innerHTML = '<div class="card text-center py-14">'
+        +'<i class="fas fa-receipt text-5xl mb-4" style="color:#dde3ef"></i>'
+        +'<p class="font-medium mb-1" style="color:#4a5568">내역이 없습니다</p>'
+        +'<p class="text-sm" style="color:#8e9ab4">결제·사용·환불 내역이 여기에 표시됩니다</p>'
+      +'</div>';
+      return;
+    }
+    const html = items.map(renderItem).join('');
+    if (reset) el.innerHTML = html;
+    else el.innerHTML += html;
+  } catch(e) {
+    if (reset) el.innerHTML = '<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>';
+  }
+}
+
+function loadMore() {
+  _curPage++;
+  loadActivity(_curPage, false);
+}
+
+window.addEventListener('DOMContentLoaded', async () => {
+  if (!requireAuth('customer')) return;
+  // URL hash로 탭 초기화 지원 (#use, #refund 등)
+  const hash = location.hash.replace('#','');
+  if (['buy','use','refund'].includes(hash)) setFilter(hash);
+  else loadActivity(1, true);
+});
+</script>
+`)
+}
+

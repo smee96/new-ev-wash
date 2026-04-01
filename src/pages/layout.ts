@@ -146,8 +146,20 @@ function showToast(msg, type = 'success') {
   el._timer = setTimeout(() => el.style.display = 'none', 2800);
 }
 function formatPrice(n) { return Number(n || 0).toLocaleString() + '원'; }
-function formatDate(s) { if (!s) return '-'; return new Date(s).toLocaleDateString('ko-KR'); }
-function formatDateTime(s) { if (!s) return '-'; return new Date(s).toLocaleString('ko-KR'); }
+function toKST(s) {
+  if (!s) return null;
+  // DB 값이 UTC 기준 문자열이면 +9h, 이미 '+09:00' 포함이면 그대로
+  const str = String(s);
+  if (str.includes('+') || str.includes('Z')) return new Date(str);
+  return new Date(str.replace(' ','T') + '+00:00');
+}
+function formatDate(s) { if (!s) return '-'; const d=toKST(s); return d ? d.toLocaleDateString('ko-KR',{timeZone:'Asia/Seoul'}) : '-'; }
+function formatDateTime(s) {
+  if (!s) return '-';
+  const d = toKST(s);
+  if (!d) return '-';
+  return d.toLocaleString('ko-KR', { timeZone:'Asia/Seoul', year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' });
+}
 function requireAuth(type) {
   const u = getUser();
   if (!u) { window.location.href = type === 'owner' ? '/owner/login' : type === 'admin' ? '/admin/login' : '/login'; return null; }

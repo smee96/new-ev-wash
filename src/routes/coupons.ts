@@ -226,9 +226,85 @@ coupons.get('/my/history/all', authMiddleware, requireRole('customer'), async (c
   return c.json({ history: history.results, total: total?.cnt || 0, page, limit })
 })
 
-// ============================================================
-// 결제 (Toss Payments)
-// ============================================================
+// 통합 활동 내역 (결제+사용+환불)
+coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const page  = parseInt(c.req.query('page')  || '1')
+  const type  = c.req.query('type') || 'all'   // all | buy | use | refund
+  const limit = 20
+  const offset = (page - 1) * limit
+
+  // 1) 구매 내역
+  const buyRows = await c.env.DB.prepare(`
+    SELECT p.id as id, 'buy' as type,
+           p.created_at as event_at,
+           c.title as coupon_title,
+           s.station_name,
+           p.total_amount as amount,
+           p.quantity,
+           p.status,
+           p.remaining_uses,
+           NULL as wash_count_used
+    FROM coupon_purchases p
+    JOIN coupons c ON p.coupon_id = c.id
+    JOIN stations s ON p.station_id = s.id
+    WHERE p.user_id = ?
+  `).bind(user.userId).all()
+
+  // 2) 사용 내역
+  const useRows = await c.env.DB.prepare(`
+    SELECT cu.id as id, 'use' as type,
+           cu.used_at as event_at,
+           c.title as coupon_title,
+           s.station_name,
+           cu.unit_price as amount,
+           NULL as quantity,
+           'used' as status,
+           NULL as remaining_uses,
+           cu.wash_count_used
+    FROM coupon_usages cu
+    JOIN coupons c ON cu.coupon_id = c.id
+    JOIN stations s ON cu.station_id = s.id
+    WHERE cu.user_id = ?
+  `).bind(user.userId).all()
+
+  // 3) 환불 내역
+  const refundRows = await c.env.DB.prepare(`
+    SELECT r.id as id, 'refund' as type,
+           r.created_at as event_at,
+           c.title as coupon_title,
+           s.station_name,
+           r.refund_amount as amount,
+           r.refund_uses as quantity,
+           r.status,
+           NULL as remaining_uses,
+           NULL as wash_count_used
+    FROM refund_requests r
+    JOIN coupon_purchases cp ON r.purchase_id = cp.id
+    JOIN coupons c ON cp.coupon_id = c.id
+    JOIN stations s ON r.station_id = s.id
+    WHERE r.user_id = ?
+  `).bind(user.userId).all()
+
+  // 합쳐서 event_at 기준 내림차순 정렬
+  let all: any[] = []
+  if (type === 'all' || type === 'buy')    all = all.concat(buyRows.results)
+  if (type === 'all' || type === 'use')    all = all.concat(useRows.results)
+  if (type === 'all' || type === 'refund') all = all.concat(refundRows.results)
+
+  all.sort((a, b) => {
+    const ta = new Date(a.event_at).getTime()
+    const tb = new Date(b.event_at).getTime()
+    return tb - ta
+  })
+
+  const total = all.length
+  const paged = all.slice(offset, offset + limit)
+
+  return c.json({ items: paged, total, page, limit })
+})
+
+
 
 // 결제 준비 (임시 주문 생성)
 coupons.post('/buy', authMiddleware, requireRole('customer'), async (c) => {

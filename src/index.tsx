@@ -17,7 +17,7 @@ import { landingPage, termsPage, privacyPage, guidePage } from './pages/landing'
 // HTML 페이지 - 고객
 import {
   customerHomePage, loginPage, registerPage, stationListPage, stationDetailPage,
-  myCouponsPage, myCouponDetailPage, myRefundHistoryPage, myPage, paymentSuccessPage, paymentFailPage
+  myCouponsPage, myCouponDetailPage, myRefundHistoryPage, myActivityPage, myPage, paymentSuccessPage, paymentFailPage
 } from './pages/customer'
 
 // HTML 페이지 - 사장님
@@ -70,6 +70,7 @@ app.get('/stations/:id', (c) => c.html(stationDetailPage()))
 app.get('/my-coupons', (c) => c.html(myCouponsPage()))
 app.get('/my-coupons/:stationId', (c) => c.html(myCouponDetailPage()))
 app.get('/my-refunds', (c) => c.html(myRefundHistoryPage()))
+app.get('/my-history', (c) => c.html(myActivityPage()))
 app.get('/mypage', (c) => c.html(myPage()))
 app.get('/payment/success', (c) => c.html(paymentSuccessPage()))
 app.get('/payment/fail', (c) => c.html(paymentFailPage()))

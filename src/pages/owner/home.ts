@@ -5,7 +5,7 @@ export function ownerHomePage(): string {
   return htmlPage('사장님 홈', `
 <div class="min-h-screen pb-24">
   <!-- 헤더 -->
-  <div class="ev-bg text-white px-5 pb-7" style="padding-top:max(48px,env(safe-area-inset-top))">
+  <div class="ev-bg text-white px-5 pb-4" style="padding-top:max(48px,env(safe-area-inset-top))">
     <div class="flex justify-between items-center">
       <div>
         <p class="text-sm opacity-60 mb-0.5" id="ownerGreet">안녕하세요</p>
@@ -17,21 +17,49 @@ export function ownerHomePage(): string {
     </div>
   </div>
 
-  <div class="p-4 space-y-4" style="margin-top:-20px">
+  <div class="p-4 space-y-4" style="margin-top:16px">
 
-    <!-- 정산 대기 카드 (메인) -->
-    <div id="pendingCard" class="card" style="background:#0a1628;border:none;border-radius:20px">
-      <p class="text-xs mb-1" style="color:rgba(255,255,255,.5)"><i class="fas fa-clock mr-1" style="color:#84cc16"></i>정산 대기 금액</p>
-      <p class="text-3xl font-bold mb-0.5" style="color:#bef264" id="pendingSettle">-</p>
-      <p class="text-xs mb-4" style="color:rgba(255,255,255,.35)" id="pendingFeeNote">플랫폼 수수료 차감 후</p>
-      <div class="grid grid-cols-2 gap-2">
-        <div class="rounded-xl p-3" style="background:rgba(255,255,255,.07)">
-          <p class="text-xs mb-1" style="color:rgba(255,255,255,.45)">미정산 매출</p>
-          <p class="font-bold" style="color:#fff" id="pendingSales">-</p>
+    <!-- 이번달 매출 요약 카드 (메인) -->
+    <div class="card" style="background:#0a1628;border:none;border-radius:20px;padding:20px">
+      <div class="flex items-center justify-between mb-3">
+        <p class="text-xs font-medium" style="color:rgba(255,255,255,.5)">
+          <i class="fas fa-calendar-alt mr-1" style="color:#84cc16"></i>
+          <span id="monthLabel">이번달</span> 매출 현황
+        </p>
+        <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(132,204,22,.15);color:#84cc16" id="feeRateBadge">수수료 15%</span>
+      </div>
+
+      <!-- 이번달 핵심 수치 3칸 -->
+      <div class="grid grid-cols-3 gap-2 mb-4">
+        <div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
+          <p class="text-lg font-bold leading-tight" style="color:#bef264" id="monthSellSales">-</p>
+          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">판매액</p>
         </div>
-        <div class="rounded-xl p-3" style="background:rgba(255,255,255,.07)">
-          <p class="text-xs mb-1" style="color:rgba(255,255,255,.45)">활성 쿠폰</p>
-          <p class="font-bold" style="color:#fff" id="activeCoupons">- 건</p>
+        <div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
+          <p class="text-lg font-bold leading-tight" style="color:#fff" id="monthUseSales">-</p>
+          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">사용액</p>
+        </div>
+        <div class="rounded-xl p-3 text-center" style="background:rgba(132,204,22,.12)">
+          <p class="text-lg font-bold leading-tight" style="color:#84cc16" id="monthUseSettle">-</p>
+          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">예상정산</p>
+        </div>
+      </div>
+
+      <!-- 정산 완료 + 정산 대기 -->
+      <div class="grid grid-cols-2 gap-2">
+        <div class="rounded-xl p-3" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)">
+          <div class="flex items-center gap-1.5 mb-1">
+            <i class="fas fa-check-circle text-xs" style="color:#4ade80"></i>
+            <p class="text-xs" style="color:rgba(255,255,255,.45)">이번달 정산완료</p>
+          </div>
+          <p class="font-bold text-sm" style="color:#4ade80" id="monthSettled">-</p>
+        </div>
+        <div class="rounded-xl p-3" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)">
+          <div class="flex items-center gap-1.5 mb-1">
+            <i class="fas fa-clock text-xs" style="color:#fbbf24"></i>
+            <p class="text-xs" style="color:rgba(255,255,255,.45)">정산 대기</p>
+          </div>
+          <p class="font-bold text-sm" style="color:#fbbf24" id="pendingSettle">-</p>
         </div>
       </div>
     </div>
@@ -47,37 +75,47 @@ export function ownerHomePage(): string {
 
       <!-- 오늘 -->
       <div id="ct_today" class="p-4">
-        <div class="grid grid-cols-3 gap-3">
-          <div class="text-center">
-            <p class="text-xl font-bold" style="color:#1a2f5e" id="todayCount">-</p>
-            <p class="text-xs mt-1" style="color:#8e9ab4">사용건수</p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="rounded-xl p-3" style="background:#f4f7fb">
+            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-shopping-cart mr-1"></i>쿠폰 판매</p>
+            <p class="text-lg font-bold" style="color:#1a2f5e" id="todaySellSales">-</p>
+            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="todaySellCount">0</span>건 판매</p>
           </div>
-          <div class="text-center" style="border-left:1px solid #eef1f7;border-right:1px solid #eef1f7">
-            <p class="text-xl font-bold" style="color:#1a2f5e" id="todaySales">-</p>
-            <p class="text-xs mt-1" style="color:#8e9ab4">매출</p>
+          <div class="rounded-xl p-3" style="background:#f4f7fb">
+            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-car-wash mr-1"></i>세차 사용</p>
+            <p class="text-lg font-bold" style="color:#1a2f5e" id="todayUseSales">-</p>
+            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="todayUseCount">0</span>건 사용</p>
           </div>
-          <div class="text-center">
-            <p class="text-xl font-bold" style="color:#65a30d" id="todaySettle">-</p>
-            <p class="text-xs mt-1" style="color:#8e9ab4">예상 정산</p>
+        </div>
+        <div class="rounded-xl p-3 flex items-center justify-between" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-coins" style="color:#16a34a"></i>
+            <p class="text-sm font-medium" style="color:#15803d">오늘 예상 정산액</p>
           </div>
+          <p class="text-lg font-bold" style="color:#16a34a" id="todayUseSettle">-</p>
         </div>
       </div>
 
-      <!-- 이번달 (hidden) -->
+      <!-- 이번달 -->
       <div id="ct_month" class="p-4 hidden">
-        <div class="grid grid-cols-3 gap-3">
-          <div class="text-center">
-            <p class="text-xl font-bold" style="color:#1a2f5e" id="monthCount">-</p>
-            <p class="text-xs mt-1" style="color:#8e9ab4">사용건수</p>
+        <div class="grid grid-cols-2 gap-3 mb-3">
+          <div class="rounded-xl p-3" style="background:#f4f7fb">
+            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-shopping-cart mr-1"></i>쿠폰 판매</p>
+            <p class="text-lg font-bold" style="color:#1a2f5e" id="monthSellSales2">-</p>
+            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="monthSellCount">0</span>건 판매</p>
           </div>
-          <div class="text-center" style="border-left:1px solid #eef1f7;border-right:1px solid #eef1f7">
-            <p class="text-xl font-bold" style="color:#1a2f5e" id="monthSales">-</p>
-            <p class="text-xs mt-1" style="color:#8e9ab4">매출</p>
+          <div class="rounded-xl p-3" style="background:#f4f7fb">
+            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-car-wash mr-1"></i>세차 사용</p>
+            <p class="text-lg font-bold" style="color:#1a2f5e" id="monthUseSales2">-</p>
+            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="monthUseCount">0</span>건 사용</p>
           </div>
-          <div class="text-center">
-            <p class="text-xl font-bold" style="color:#65a30d" id="monthSettle">-</p>
-            <p class="text-xs mt-1" style="color:#8e9ab4">예상 정산</p>
+        </div>
+        <div class="rounded-xl p-3 flex items-center justify-between" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac">
+          <div class="flex items-center gap-2">
+            <i class="fas fa-coins" style="color:#16a34a"></i>
+            <p class="text-sm font-medium" style="color:#15803d">이번달 예상 정산액</p>
           </div>
+          <p class="text-lg font-bold" style="color:#16a34a" id="monthUseSettle2">-</p>
         </div>
       </div>
     </div>
@@ -146,34 +184,46 @@ function doLogout() {
     confirmText:'로그아웃', confirmClass:'btn-danger', onConfirm: logout });
 }
 
+function fp(v) { return (v||0).toLocaleString() + '원'; }
+
 window.addEventListener('DOMContentLoaded', async () => {
   const u = requireAuth('station_owner');
   if (!u) return;
   document.getElementById('ownerName').textContent = (u.name || '사장') + '님';
 
+  // 현재 월 표시
+  const now = new Date(Date.now() + 9*60*60*1000);
+  document.getElementById('monthLabel').textContent = (now.getMonth()+1) + '월';
+
   // 요약 통계
   try {
     const r = await API.get('/stations/owner-summary');
-    const fp = v => (v||0).toLocaleString() + '원';
     const fr = r.fee_rate ?? 15;
+    document.getElementById('feeRateBadge').textContent = '수수료 ' + fr + '%';
 
-    // 정산대기 카드
-    document.getElementById('pendingSettle').textContent = fp(r.pending_settle);
-    document.getElementById('pendingSales').textContent  = fp(r.pending_sales);
-    document.getElementById('activeCoupons').textContent = (r.active_coupons||0) + ' 건';
-    document.getElementById('pendingFeeNote').textContent = '수수료 ' + fr + '% 차감 후 예상 정산액';
+    // 메인 카드 - 이번달
+    document.getElementById('monthSellSales').textContent  = fp(r.month_sell_sales);
+    document.getElementById('monthUseSales').textContent   = fp(r.month_use_sales);
+    document.getElementById('monthUseSettle').textContent  = fp(r.month_use_settle);
+    document.getElementById('monthSettled').textContent    = fp(r.month_settled);
+    document.getElementById('pendingSettle').textContent   = fp(r.pending_settle);
 
-    // 오늘
-    document.getElementById('todayCount').textContent  = (r.today_count||0) + '건';
-    document.getElementById('todaySales').textContent  = fp(r.today_sales);
-    document.getElementById('todaySettle').textContent = fp(r.today_settle);
+    // 오늘 탭
+    document.getElementById('todaySellSales').textContent  = fp(r.today_sell_sales);
+    document.getElementById('todaySellCount').textContent  = (r.today_sell_count||0);
+    document.getElementById('todayUseSales').textContent   = fp(r.today_use_sales);
+    document.getElementById('todayUseCount').textContent   = (r.today_use_count||0);
+    document.getElementById('todayUseSettle').textContent  = fp(r.today_use_settle);
 
-    // 이번달
-    document.getElementById('monthCount').textContent  = (r.month_count||0) + '건';
-    document.getElementById('monthSales').textContent  = fp(r.month_sales);
-    document.getElementById('monthSettle').textContent = fp(r.month_settle);
+    // 이번달 탭
+    document.getElementById('monthSellSales2').textContent = fp(r.month_sell_sales);
+    document.getElementById('monthSellCount').textContent  = (r.month_sell_count||0);
+    document.getElementById('monthUseSales2').textContent  = fp(r.month_use_sales);
+    document.getElementById('monthUseCount').textContent   = (r.month_use_count||0);
+    document.getElementById('monthUseSettle2').textContent = fp(r.month_use_settle);
+
   } catch(e) {
-    document.getElementById('pendingSettle').textContent = '불러오기 실패';
+    document.getElementById('monthSellSales').textContent = '불러오기 실패';
   }
 
   // 주유소 미리보기
@@ -196,7 +246,7 @@ window.addEventListener('DOMContentLoaded', async () => {
           +'</div>'
           +'<div class="flex gap-3 mt-1 text-xs" style="color:#8e9ab4">'
             +'<span>쿠폰 <b style="color:#1a2f5e">'+s.coupon_count+'</b>종</span>'
-            +'<span>이번달 <b style="color:#1a2f5e">'+s.monthly_usages+'</b>건</span>'
+            +'<span>이번달 <b style="color:#1a2f5e">'+s.monthly_usages+'</b>건 사용</span>'
           +'</div>'
         +'</div>'
         +'<i class="fas fa-chevron-right ml-2" style="color:#dde3ef"></i>'

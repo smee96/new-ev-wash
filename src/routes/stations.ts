@@ -198,49 +198,100 @@ stations.get('/owner-summary', authMiddleware, requireRole('station_owner'), asy
       /* 오늘 사용건 */
       (SELECT COUNT(*) FROM coupon_usages cu
        JOIN stations s ON cu.station_id = s.id
-       WHERE s.owner_id = ? AND date(cu.used_at) = ?) as today_count,
+       WHERE s.owner_id = ? AND date(cu.used_at) = ?) as today_use_count,
 
-      /* 오늘 매출 */
+      /* 오늘 사용 매출 */
       (SELECT COALESCE(SUM(cu.unit_price),0) FROM coupon_usages cu
        JOIN stations s ON cu.station_id = s.id
-       WHERE s.owner_id = ? AND date(cu.used_at) = ?) as today_sales,
+       WHERE s.owner_id = ? AND date(cu.used_at) = ?) as today_use_sales,
+
+      /* 오늘 쿠폰 판매건 */
+      (SELECT COUNT(*) FROM coupon_purchases cp
+       JOIN stations s ON cp.station_id = s.id
+       WHERE s.owner_id = ? AND date(cp.created_at) = ?) as today_sell_count,
+
+      /* 오늘 쿠폰 판매 금액 */
+      (SELECT COALESCE(SUM(cp.total_amount),0) FROM coupon_purchases cp
+       JOIN stations s ON cp.station_id = s.id
+       WHERE s.owner_id = ? AND date(cp.created_at) = ? AND cp.status NOT IN ('refunded')) as today_sell_sales,
 
       /* 이번달 사용건 */
       (SELECT COUNT(*) FROM coupon_usages cu
        JOIN stations s ON cu.station_id = s.id
-       WHERE s.owner_id = ? AND cu.used_at >= ?) as month_count,
+       WHERE s.owner_id = ? AND cu.used_at >= ?) as month_use_count,
 
-      /* 이번달 매출 */
+      /* 이번달 사용 매출 */
       (SELECT COALESCE(SUM(cu.unit_price),0) FROM coupon_usages cu
        JOIN stations s ON cu.station_id = s.id
-       WHERE s.owner_id = ? AND cu.used_at >= ?) as month_sales,
+       WHERE s.owner_id = ? AND cu.used_at >= ?) as month_use_sales,
 
-      /* 정산 대기 금액 (미정산 전체) */
+      /* 이번달 쿠폰 판매건 */
+      (SELECT COUNT(*) FROM coupon_purchases cp
+       JOIN stations s ON cp.station_id = s.id
+       WHERE s.owner_id = ? AND cp.created_at >= ? AND cp.status NOT IN ('refunded')) as month_sell_count,
+
+      /* 이번달 쿠폰 판매 금액 */
+      (SELECT COALESCE(SUM(cp.total_amount),0) FROM coupon_purchases cp
+       JOIN stations s ON cp.station_id = s.id
+       WHERE s.owner_id = ? AND cp.created_at >= ? AND cp.status NOT IN ('refunded')) as month_sell_sales,
+
+      /* 이번달 완료된 정산 금액 */
+      (SELECT COALESCE(SUM(se.net_amount),0) FROM settlements se
+       JOIN stations s ON se.station_id = s.id
+       WHERE s.owner_id = ? AND se.settlement_date >= ? AND se.status = 'completed') as month_settled,
+
+      /* 정산 대기 금액 (미정산 전체 사용분) */
       (SELECT COALESCE(SUM(cu.unit_price),0) FROM coupon_usages cu
        JOIN stations s ON cu.station_id = s.id
        WHERE s.owner_id = ? AND (cu.settled IS NULL OR cu.settled = 0)) as pending_sales,
 
-      /* 현재 활성 쿠폰 구매건 (미사용 잔여분 보유) */
+      /* 현재 활성 쿠폰 구매건 */
       (SELECT COUNT(*) FROM coupon_purchases cp
        JOIN stations s ON cp.station_id = s.id
        WHERE s.owner_id = ? AND cp.status IN ('active','partial_refunded') AND cp.remaining_uses > 0) as active_coupons
-  `).bind(uid, todayKST, uid, todayKST, uid, monthStart, uid, monthStart, uid, uid).first<any>()
+  `).bind(
+    uid, todayKST,   // today_use_count
+    uid, todayKST,   // today_use_sales
+    uid, todayKST,   // today_sell_count
+    uid, todayKST,   // today_sell_sales
+    uid, monthStart, // month_use_count
+    uid, monthStart, // month_use_sales
+    uid, monthStart, // month_sell_count
+    uid, monthStart, // month_sell_sales
+    uid, monthStart, // month_settled
+    uid,             // pending_sales
+    uid              // active_coupons
+  ).first<any>()
 
-  const pendingSales  = rows?.pending_sales  || 0
-  const todaySales    = rows?.today_sales    || 0
-  const monthSales    = rows?.month_sales    || 0
+  const pendingSales     = rows?.pending_sales     || 0
+  const todayUseSales    = rows?.today_use_sales   || 0
+  const todaySellSales   = rows?.today_sell_sales  || 0
+  const monthUseSales    = rows?.month_use_sales   || 0
+  const monthSellSales   = rows?.month_sell_sales  || 0
+  const monthSettled     = rows?.month_settled     || 0
 
   return c.json({
     fee_rate:            feeRate,
-    today_count:         rows?.today_count    || 0,
-    today_sales:         todaySales,
-    today_settle:        Math.floor(todaySales    * (1 - feeRate / 100)),
-    month_count:         rows?.month_count    || 0,
-    month_sales:         monthSales,
-    month_settle:        Math.floor(monthSales    * (1 - feeRate / 100)),
+    // 오늘 - 사용(세차)
+    today_use_count:     rows?.today_use_count    || 0,
+    today_use_sales:     todayUseSales,
+    today_use_settle:    Math.floor(todayUseSales  * (1 - feeRate / 100)),
+    // 오늘 - 판매(쿠폰구매)
+    today_sell_count:    rows?.today_sell_count   || 0,
+    today_sell_sales:    todaySellSales,
+    // 이번달 - 사용(세차)
+    month_use_count:     rows?.month_use_count    || 0,
+    month_use_sales:     monthUseSales,
+    month_use_settle:    Math.floor(monthUseSales  * (1 - feeRate / 100)),
+    // 이번달 - 판매(쿠폰구매)
+    month_sell_count:    rows?.month_sell_count   || 0,
+    month_sell_sales:    monthSellSales,
+    // 이번달 완료 정산
+    month_settled:       monthSettled,
+    // 정산 대기
     pending_sales:       pendingSales,
     pending_settle:      Math.floor(pendingSales  * (1 - feeRate / 100)),
-    active_coupons:      rows?.active_coupons || 0,
+    active_coupons:      rows?.active_coupons     || 0,
   })
 })
 

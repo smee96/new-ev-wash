@@ -2,7 +2,7 @@
 import { Hono } from 'hono'
 import { authMiddleware, requireRole } from '../middleware/auth'
 import { sendEmail, applicationApprovedEmail, applicationRejectedEmail, stationClosedRefundEmail } from '../utils/email'
-import { generateId, kstNow } from '../utils/jwt'
+import { generateId, kstNow, kstDate, kstYesterday } from '../utils/jwt'
 import type { Env, JWTPayload } from '../types'
 
 type AppEnv = { Bindings: Env; Variables: { user: JWTPayload } }
@@ -59,6 +59,9 @@ admin.get('/dashboard', async (c) => {
     c.env.DB.prepare(`SELECT COALESCE(SUM(unit_price),0) as total FROM coupon_usages WHERE settled=0`).first<any>(),
   ])
 
+  // 최근 7일 시작일 (KST 기준 -6일)
+  const sevenDaysAgo = new Date(Date.now() + 9*3600000 - 6*86400000).toISOString().substring(0, 10)
+
   // 최근 7일 구매/사용 차트 데이터
   const [weeklyBuy, weeklyUse] = await Promise.all([
     c.env.DB.prepare(`
@@ -66,13 +69,13 @@ admin.get('/dashboard', async (c) => {
       FROM coupon_purchases
       WHERE date(created_at) >= ? AND ${VALID_STATUS}
       GROUP BY day ORDER BY day
-    `).bind(yesterdayKst < todayKst ? (() => { const d = new Date(Date.now()+9*3600000-6*86400000); return d.toISOString().substring(0,10) })() : todayKst).all(),
+    `).bind(sevenDaysAgo).all(),
     c.env.DB.prepare(`
       SELECT date(used_at) as day, COALESCE(SUM(unit_price),0) as total, COUNT(*) as cnt
       FROM coupon_usages
       WHERE date(used_at) >= ?
       GROUP BY day ORDER BY day
-    `).bind((() => { const d = new Date(Date.now()+9*3600000-6*86400000); return d.toISOString().substring(0,10) })()).all(),
+    `).bind(sevenDaysAgo).all(),
   ])
 
   const bf = (v: number) => Math.floor(v * feeRate)

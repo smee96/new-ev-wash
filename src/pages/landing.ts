@@ -1214,3 +1214,154 @@ document.addEventListener('DOMContentLoaded', function(){
 </script>
 `)
 }
+
+export function proposalPage(): string {
+  return `<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<title>EV-Wash 서비스 제안서</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&display=swap');
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Noto Sans KR','Apple SD Gothic Neo',sans-serif;background:#e8e8e8;display:flex;justify-content:center;align-items:flex-start;padding:20px;min-height:100vh}
+  .page{width:210mm;min-height:297mm;background:#fff;position:relative;overflow:hidden;box-shadow:0 4px 30px rgba(0,0,0,.15)}
+  .header{background:#0a1628;padding:28px 32px 22px;position:relative;overflow:hidden}
+  .header::after{content:'';position:absolute;right:-40px;top:-40px;width:200px;height:200px;border-radius:50%;background:rgba(132,204,22,.08)}
+  .header-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+  .logo{display:flex;align-items:center;gap:10px}
+  .logo-icon{width:38px;height:38px;background:#84cc16;border-radius:10px;display:flex;align-items:center;justify-content:center;font-size:20px}
+  .logo-text{font-size:22px;font-weight:900;color:#bef264;letter-spacing:-.5px}
+  .logo-sub{font-size:10px;color:rgba(255,255,255,.45);font-weight:400;letter-spacing:.5px}
+  .badge-b2b{background:rgba(132,204,22,.18);border:1px solid rgba(132,204,22,.4);color:#bef264;font-size:10px;font-weight:700;padding:4px 10px;border-radius:20px;letter-spacing:.5px}
+  .header-tagline{font-size:18px;font-weight:700;color:#fff;line-height:1.4}
+  .header-tagline span{color:#bef264}
+  .header-desc{font-size:11px;color:rgba(255,255,255,.5);margin-top:5px;line-height:1.6}
+  .body{padding:22px 32px}
+  .sec-title{font-size:11px;font-weight:700;color:#0a1628;letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+  .sec-title::before{content:'';display:block;width:3px;height:14px;background:#84cc16;border-radius:2px}
+  .flow{display:flex;align-items:stretch;gap:0;margin-bottom:20px;background:#f8fafb;border-radius:14px;overflow:hidden;border:1px solid #eef1f7}
+  .flow-step{flex:1;padding:14px 10px;text-align:center;position:relative}
+  .flow-step+.flow-step::before{content:'▶';position:absolute;left:-8px;top:50%;transform:translateY(-50%);font-size:10px;color:#84cc16}
+  .flow-icon{font-size:24px;margin-bottom:6px}
+  .flow-label{font-size:9px;font-weight:700;color:#0a1628;margin-bottom:3px}
+  .flow-desc{font-size:9px;color:#8e9ab4;line-height:1.5}
+  .flow-step.highlight{background:#0a1628}
+  .flow-step.highlight .flow-label{color:#bef264}
+  .flow-step.highlight .flow-desc{color:rgba(255,255,255,.5)}
+  .two-col{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+  .benefit-card{background:#f8fafb;border:1px solid #eef1f7;border-radius:12px;padding:14px}
+  .benefit-card h4{font-size:12px;font-weight:700;color:#0a1628;margin-bottom:8px;display:flex;align-items:center;gap:6px}
+  .benefit-card h4 .icon-wrap{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:13px;background:#0a1628}
+  .benefit-list{list-style:none}
+  .benefit-list li{font-size:10px;color:#4a5568;padding:3px 0;padding-left:12px;position:relative;line-height:1.5}
+  .benefit-list li::before{content:'✓';position:absolute;left:0;color:#84cc16;font-weight:700;font-size:9px}
+  .fee-box{background:linear-gradient(135deg,#0a1628,#1a3a5e);border-radius:14px;padding:16px 20px;margin-bottom:18px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .fee-main{flex:1}
+  .fee-main p{font-size:10px;color:rgba(255,255,255,.5);margin-bottom:4px}
+  .fee-num{font-size:28px;font-weight:900;color:#bef264;line-height:1}
+  .fee-num span{font-size:14px;color:rgba(255,255,255,.6);font-weight:500}
+  .fee-desc{font-size:9.5px;color:rgba(255,255,255,.55);line-height:1.7;margin-top:8px}
+  .fee-items{display:flex;flex-direction:column;gap:6px}
+  .fee-item{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:7px 12px;text-align:center;min-width:90px}
+  .fi-label{font-size:9px;color:rgba(255,255,255,.45);margin-bottom:2px}
+  .fi-val{font-size:11px;font-weight:700;color:#fff}
+  .fi-val.lime{color:#bef264}
+  .example-box{background:#f0fdf4;border:1px solid #bbf7d0;border-radius:12px;padding:12px 16px;margin-bottom:18px}
+  .example-title{font-size:10px;font-weight:700;color:#15803d;margin-bottom:8px;display:flex;align-items:center;gap:5px}
+  .example-row{display:flex;justify-content:space-between;font-size:10px;color:#374151;padding:3px 0;border-bottom:1px solid #d1fae5}
+  .example-row:last-child{border-bottom:none}
+  .example-row .val{font-weight:700;color:#0a1628}
+  .example-row .lime{color:#16a34a}
+  .example-row .gray{color:#8e9ab4;font-size:9px}
+  .footer{background:#0a1628;padding:16px 32px;display:flex;align-items:center;justify-content:space-between;gap:16px}
+  .footer-left p{font-size:13px;font-weight:700;color:#fff;margin-bottom:3px}
+  .footer-left span{font-size:10px;color:rgba(255,255,255,.45)}
+  .cta-btns{display:flex;gap:8px}
+  .cta-btn{background:#84cc16;color:#0a1628;font-size:10px;font-weight:700;padding:8px 14px;border-radius:8px;text-align:center;line-height:1.4}
+  .cta-btn.outline{background:transparent;border:1px solid rgba(255,255,255,.3);color:rgba(255,255,255,.7)}
+  .qr-placeholder{width:52px;height:52px;background:#fff;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:28px;flex-shrink:0}
+  @media print{body{background:#fff;padding:0}.page{box-shadow:none;width:210mm;min-height:297mm}@page{size:A4;margin:0}.print-btn{display:none}}
+  .print-btn{position:fixed;top:16px;right:16px;background:#0a1628;color:#bef264;border:2px solid #84cc16;padding:10px 20px;border-radius:10px;font-size:13px;font-weight:700;cursor:pointer;z-index:999}
+</style>
+</head>
+<body>
+<button class="print-btn" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
+<div class="page">
+  <div class="header">
+    <div class="header-top">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div><div class="logo-text">EV-Wash</div><div class="logo-sub">전기차 세차 쿠폰 플랫폼</div></div>
+      </div>
+      <div class="badge-b2b">주유소 사업주 전용 제안서</div>
+    </div>
+    <div class="header-tagline">세차 고객을 <span>앱으로 관리</span>하고<br>정산은 <span>자동으로</span> 받으세요.</div>
+    <div class="header-desc">고객이 앱에서 세차 쿠폰을 구매 → 주유소 방문 후 QR 스캔 1회로 사용 → 플랫폼이 자동 정산<br>별도 단말기·POS 불필요 · 스마트폰 하나로 모든 것 완료</div>
+  </div>
+  <div class="body">
+    <div class="sec-title">서비스 이용 흐름</div>
+    <div class="flow">
+      <div class="flow-step"><div class="flow-icon">📱</div><div class="flow-label">① 앱 쿠폰 구매</div><div class="flow-desc">고객이 스마트폰으로<br>세차 쿠폰 결제</div></div>
+      <div class="flow-step"><div class="flow-icon">🚗</div><div class="flow-label">② 주유소 방문</div><div class="flow-desc">세차 서비스<br>이용 요청</div></div>
+      <div class="flow-step highlight"><div class="flow-icon">📲</div><div class="flow-label">③ QR 스캔</div><div class="flow-desc">주유소 QR 코드에<br>스마트폰 터치</div></div>
+      <div class="flow-step"><div class="flow-icon">✅</div><div class="flow-label">④ 즉시 사용 완료</div><div class="flow-desc">앱에서 차감<br>확인 가능</div></div>
+      <div class="flow-step"><div class="flow-icon">💰</div><div class="flow-label">⑤ 자동 정산</div><div class="flow-desc">사용 건수 기준<br>플랫폼 자동 지급</div></div>
+    </div>
+    <div class="two-col">
+      <div class="benefit-card">
+        <h4><span class="icon-wrap">🏪</span> 주유소 사업주 혜택</h4>
+        <ul class="benefit-list">
+          <li>별도 단말기·POS 설치 <strong>불필요</strong></li>
+          <li>주유소 QR코드 1개만 부착</li>
+          <li>사용 내역 실시간 앱 확인</li>
+          <li>매월 자동 정산 수령</li>
+          <li>쿠폰 가격·수량 직접 설정</li>
+          <li>미사용 쿠폰은 정산 대상 제외</li>
+        </ul>
+      </div>
+      <div class="benefit-card">
+        <h4><span class="icon-wrap">👤</span> 고객 이용 편의성</h4>
+        <ul class="benefit-list">
+          <li>현금·카드 없이 앱으로 결제</li>
+          <li>쿠폰 여러 장 미리 구매 가능</li>
+          <li>QR 스캔 1번으로 사용 완료</li>
+          <li>결제·사용·환불 내역 앱 확인</li>
+          <li>미사용 시 환불 신청 가능</li>
+          <li>전기차 특화 세차 쿠폰 검색</li>
+        </ul>
+      </div>
+    </div>
+    <div class="sec-title">정산 구조</div>
+    <div class="fee-box">
+      <div class="fee-main">
+        <p>플랫폼 수수료 (사용 건 기준)</p>
+        <div class="fee-num">15<span>%</span></div>
+        <div class="fee-desc">· 고객이 쿠폰을 <strong style="color:#fff">구매</strong>해도 수수료 없음<br>· 고객이 실제로 <strong style="color:#bef264">세차를 사용</strong>한 건에만 수수료 적용<br>· 미사용·환불 쿠폰은 수수료 없이 전액 환불</div>
+      </div>
+      <div class="fee-items">
+        <div class="fee-item"><div class="fi-label">세차 1회 단가 (예시)</div><div class="fi-val">7,000원</div></div>
+        <div class="fee-item"><div class="fi-label">플랫폼 수수료 (15%)</div><div class="fi-val" style="color:#f87171">- 1,050원</div></div>
+        <div class="fee-item"><div class="fi-label">주유소 정산 수령액</div><div class="fi-val lime">5,950원</div></div>
+      </div>
+    </div>
+    <div class="example-box">
+      <div class="example-title">💡 한 달 운영 예시 — 세차 50회 이용 시 (단가 7,000원)</div>
+      <div class="example-row"><span>고객 세차 사용</span><span class="val">50회 × 7,000원 = 350,000원</span></div>
+      <div class="example-row"><span>플랫폼 수수료 (15%)</span><span class="val" style="color:#dc2626">- 52,500원</span></div>
+      <div class="example-row"><span>주유소 정산 수령액</span><span class="val lime">297,500원 수령 ✓</span></div>
+      <div class="example-row"><span class="gray">* 쿠폰 구매 후 미사용 시 수수료 없음 / 고객 직접 환불 처리</span><span></span></div>
+    </div>
+  </div>
+  <div class="footer">
+    <div class="qr-placeholder">⚡</div>
+    <div class="footer-left" style="flex:1"><p>지금 바로 등록 신청하세요</p><span>new-ev-wash.pages.dev · 문의: bensmee96@gmail.com</span></div>
+    <div class="cta-btns">
+      <div class="cta-btn">무료로<br>등록 신청</div>
+      <div class="cta-btn outline">앱 서비스<br>직접 체험</div>
+    </div>
+  </div>
+</div>
+</body>
+</html>`
+}

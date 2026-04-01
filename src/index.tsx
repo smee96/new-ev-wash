@@ -12,7 +12,7 @@ import adminRoutes from './routes/admin'
 import userRoutes from './routes/user'
 
 // HTML 페이지 - 랜딩
-import { landingPage, termsPage, privacyPage, guidePage } from './pages/landing'
+import { landingPage, termsPage, privacyPage, guidePage, proposalPage } from './pages/landing'
 
 // HTML 페이지 - 고객
 import {
@@ -60,6 +60,7 @@ app.get('/', (c) => c.html(landingPage()))
 app.get('/terms', (c) => c.html(termsPage()))
 app.get('/privacy', (c) => c.html(privacyPage()))
 app.get('/guide', (c) => c.html(guidePage()))
+app.get('/proposal', (c) => c.html(proposalPage()))
 
 // ============ 고객 HTML 페이지 ============
 app.get('/home', (c) => c.html(customerHomePage()))

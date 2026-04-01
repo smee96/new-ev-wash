@@ -747,6 +747,24 @@ coupons.get('/my/:stationId', authMiddleware, requireRole('customer'), async (c)
   return c.json({ station, purchases: purchases.results })
 })
 
+// 환불 실패 내역 삭제 (본인 것만)
+coupons.delete('/my/refunds/:refundId/failed', authMiddleware, requireRole('customer'), async (c) => {
+  const user = c.get('user')
+  const refundId = parseInt(c.req.param('refundId'))
+
+  const refund = await c.env.DB.prepare(
+    `SELECT id, status FROM refund_requests WHERE id = ? AND user_id = ?`
+  ).bind(refundId, user.userId).first<any>()
+
+  if (!refund) return c.json({ error: '내역을 찾을 수 없습니다.' }, 404)
+  if (refund.status !== 'failed' && refund.status !== 'cancelled') {
+    return c.json({ error: '실패/취소된 내역만 삭제할 수 있습니다.' }, 400)
+  }
+
+  await c.env.DB.prepare(`DELETE FROM refund_requests WHERE id = ?`).bind(refundId).run()
+  return c.json({ message: '삭제되었습니다.' })
+})
+
 // ============================================================
 // 어드민: 쿠폰 목록
 // ============================================================

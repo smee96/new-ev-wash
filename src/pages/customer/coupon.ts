@@ -678,6 +678,7 @@ const REFUND_STATUS = {
 function renderItem(item) {
   const cfg = TYPE_CONFIG[item.type] || TYPE_CONFIG.buy;
   const dateStr = formatDateTime(item.event_at);
+  const isFailed = item.type === 'refund' && (item.status === 'failed' || item.status === 'cancelled');
   let statusBadge = '';
   if (item.type === 'buy') {
     const s = BUY_STATUS[item.status] || { text: item.status, cls:'badge-gray' };
@@ -691,25 +692,50 @@ function renderItem(item) {
   if (item.type === 'use')    subLine = (item.wash_count_used||1)+'회 세차';
   if (item.type === 'refund') subLine = (item.quantity||1)+'회 환불신청';
 
-  const amtStr = cfg.amtPrefix + (item.amount||0).toLocaleString() + '원';
+  // 실패 항목은 금액 표시 안 함 (합산 혼동 방지)
+  const amtStr = isFailed ? '-' : (cfg.amtPrefix + (item.amount||0).toLocaleString() + '원');
 
-  return '<div class="card flex items-center gap-3" style="padding:14px 16px">'
-    +'<div class="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center" style="background:'+cfg.bg+'">'
-      +'<i class="fas '+cfg.icon+' text-base" style="color:'+cfg.iconColor+'"></i>'
-    +'</div>'
-    +'<div class="flex-1 min-w-0">'
-      +'<div class="flex items-center gap-2 mb-0.5">'
-        +'<span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="background:'+cfg.bg+';color:'+cfg.iconColor+'">'+cfg.label+'</span>'
-        + statusBadge
+  const deleteBtn = isFailed
+    ? '<button onclick="deleteFailedRefund('+item.id+',this)" class="mt-2 text-xs px-2 py-1 rounded" style="background:#fee2e2;color:#dc2626;border:none;cursor:pointer"><i class="fas fa-trash-alt mr-1"></i>삭제</button>'
+    : '';
+
+  return '<div id="refund-item-'+item.id+'" class="card" style="padding:14px 16px;'+(isFailed?'opacity:0.65':'')+'">'
+    +'<div class="flex items-center gap-3">'
+      +'<div class="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center" style="background:'+cfg.bg+'">'
+        +'<i class="fas '+cfg.icon+' text-base" style="color:'+cfg.iconColor+'"></i>'
       +'</div>'
-      +'<p class="font-semibold text-sm truncate" style="color:#1a202c">'+(item.coupon_title||'-')+'</p>'
-      +'<p class="text-xs truncate" style="color:#8e9ab4">'+(item.station_name||'-')+' · '+subLine+'</p>'
-    +'</div>'
-    +'<div class="text-right flex-shrink-0">'
-      +'<p class="font-bold text-sm" style="color:'+cfg.amtColor+'">'+amtStr+'</p>'
-      +'<p class="text-xs mt-0.5" style="color:#b0b8cc">'+dateStr+'</p>'
+      +'<div class="flex-1 min-w-0">'
+        +'<div class="flex items-center gap-2 mb-0.5">'
+          +'<span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="background:'+cfg.bg+';color:'+cfg.iconColor+'">'+cfg.label+'</span>'
+          + statusBadge
+        +'</div>'
+        +'<p class="font-semibold text-sm truncate" style="color:#1a202c">'+(item.coupon_title||'-')+'</p>'
+        +'<p class="text-xs truncate" style="color:#8e9ab4">'+(item.station_name||'-')+' · '+subLine+'</p>'
+        + deleteBtn
+      +'</div>'
+      +'<div class="text-right flex-shrink-0">'
+        +'<p class="font-bold text-sm" style="color:'+(isFailed?'#9ca3af':cfg.amtColor)+'">'+amtStr+'</p>'
+        +'<p class="text-xs mt-0.5" style="color:#b0b8cc">'+dateStr+'</p>'
+      +'</div>'
     +'</div>'
   +'</div>';
+}
+
+async function deleteFailedRefund(refundId, btn) {
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fas fa-spinner fa-spin mr-1"></i>삭제 중';
+  try {
+    await API.delete('/coupons/my/refunds/'+refundId+'/failed');
+    // 캐시에서도 제거 후 재렌더
+    _allItems = _allItems.filter(i => !(i.type==='refund' && i.id===refundId));
+    updateSummary(_allItems);
+    renderFiltered();
+    showToast('삭제되었습니다.');
+  } catch(e) {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="fas fa-trash-alt mr-1"></i>삭제';
+    showToast(e.data?.error || '삭제 실패', 'error');
+  }
 }
 
 // ── 전체 데이터 캐시 → 필터만 클라이언트에서 처리 ──
@@ -735,12 +761,14 @@ function renderFiltered() {
 }
 
 function updateSummary(items) {
-  const buyAmt    = items.filter(i=>i.type==='buy').reduce((s,i)=>s+(i.amount||0),0);
-  const useAmt    = items.filter(i=>i.type==='use').reduce((s,i)=>s+(i.amount||0),0);
-  const refundAmt = items.filter(i=>i.type==='refund').reduce((s,i)=>s+(i.amount||0),0);
-  const buyCnt    = items.filter(i=>i.type==='buy').length;
-  const useCnt    = items.filter(i=>i.type==='use').length;
-  const refundCnt = items.filter(i=>i.type==='refund').length;
+  // 실패/취소된 환불은 합산에서 제외
+  const validItems = items.filter(i => !(i.type==='refund' && (i.status==='failed'||i.status==='cancelled')));
+  const buyAmt    = validItems.filter(i=>i.type==='buy').reduce((s,i)=>s+(i.amount||0),0);
+  const useAmt    = validItems.filter(i=>i.type==='use').reduce((s,i)=>s+(i.amount||0),0);
+  const refundAmt = validItems.filter(i=>i.type==='refund').reduce((s,i)=>s+(i.amount||0),0);
+  const buyCnt    = validItems.filter(i=>i.type==='buy').length;
+  const useCnt    = validItems.filter(i=>i.type==='use').length;
+  const refundCnt = validItems.filter(i=>i.type==='refund').length;
   document.getElementById('sumBuy').textContent    = buyCnt+'건 '+buyAmt.toLocaleString()+'원';
   document.getElementById('sumUse').textContent    = useCnt+'건 '+useAmt.toLocaleString()+'원';
   document.getElementById('sumRefund').textContent = refundCnt+'건 '+refundAmt.toLocaleString()+'원';

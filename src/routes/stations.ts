@@ -183,11 +183,11 @@ stations.get('/owner-summary', authMiddleware, requireRole('station_owner'), asy
   const user = c.get('user')
   const uid = user.userId
 
-  // 플랫폼 수수료율
+  // 플랫폼 수수료율 (platform_settings는 key/value 구조)
   const setting = await c.env.DB.prepare(
-    `SELECT fee_rate FROM platform_settings ORDER BY id DESC LIMIT 1`
+    `SELECT value FROM platform_settings WHERE key = 'platform_fee_rate' LIMIT 1`
   ).first<any>()
-  const feeRate = setting?.fee_rate ?? 15
+  const feeRate = setting?.value ? Math.round(parseFloat(setting.value) * 100) : 15
 
   // KST 날짜 기준
   const todayKST  = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10)

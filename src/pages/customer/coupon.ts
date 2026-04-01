@@ -4,9 +4,15 @@ import { htmlPage } from '../layout'
 export function myCouponsPage(): string {
   return htmlPage('내 쿠폰', `
 <style>
-#couponMapWrap { width:100%; height:calc(100vh - 180px); }
+#couponMapWrap { width:100%; height:calc(100vh - 148px); position:relative; }
 #couponMap { width:100%; height:100%; }
 #couponListWrap { display:none; }
+#couponLocBtn {
+  position:absolute; right:14px; bottom:20px; z-index:100;
+  width:48px; height:48px; border-radius:50%;
+  background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.18);
+  border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
 </style>
 
 <div class="min-h-screen pb-24" style="display:flex;flex-direction:column">
@@ -29,6 +35,9 @@ export function myCouponsPage(): string {
   <!-- 지도 뷰 -->
   <div id="couponMapWrap">
     <div id="couponMap"></div>
+    <button id="couponLocBtn" onclick="getCouponLocation()" title="내 위치">
+      <i class="fas fa-location-crosshairs" style="font-size:20px;color:#3b82f6"></i>
+    </button>
   </div>
 
   <!-- 목록 뷰 -->
@@ -48,6 +57,36 @@ export function myCouponsPage(): string {
 
 <script>
 let couponMap, couponOverlays = [], allStations = [];
+let _cmMyMarker=null, _cmMyCircle=null;
+
+function getCouponLocation() {
+  if (!navigator.geolocation) { showToast('위치 서비스 미지원','error'); return; }
+  showToast('위치를 가져오는 중...','info');
+  navigator.geolocation.getCurrentPosition(
+    function(p) {
+      var pos = new kakao.maps.LatLng(p.coords.latitude, p.coords.longitude);
+      if (_cmMyMarker) _cmMyMarker.setMap(null);
+      if (_cmMyCircle) _cmMyCircle.setMap(null);
+      _cmMyMarker = new kakao.maps.CustomOverlay({
+        map: couponMap, position: pos, yAnchor: 0.5,
+        content: '<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;'
+          + 'border:3px solid #fff;box-shadow:0 0 0 3px rgba(59,130,246,.35)"></div>'
+      });
+      _cmMyCircle = new kakao.maps.Circle({
+        map: couponMap, center: pos, radius: 1000,
+        strokeWeight:1, strokeColor:'#3b82f6', strokeOpacity:0.4,
+        fillColor:'#3b82f6', fillOpacity:0.05
+      });
+      couponMap.setCenter(pos); couponMap.setLevel(5);
+      showToast('내 위치를 찾았습니다', 'success');
+    },
+    function(err) {
+      var msg = err.code===1 ? '위치 권한을 허용해주세요' : '위치를 확인할 수 없습니다';
+      showToast(msg, 'warn');
+    },
+    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+  );
+}
 
 function showCouponMap() {
   document.getElementById('couponMapWrap').style.display = 'block';

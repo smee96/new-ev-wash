@@ -22,7 +22,8 @@ import {
 
 // HTML 페이지 - 사장님
 import {
-  ownerLoginPage, ownerDashboardPage, ownerApplyPage, ownerStationPage
+  ownerLoginPage, ownerDashboardPage, ownerApplyPage, ownerStationPage,
+  ownerHomePage, ownerStationListPage, ownerMyPage
 } from './pages/owner'
 
 // HTML 페이지 - 어드민
@@ -74,10 +75,13 @@ app.get('/payment/success', (c) => c.html(paymentSuccessPage()))
 app.get('/payment/fail', (c) => c.html(paymentFailPage()))
 
 // ============ 사장님 HTML 페이지 ============
-app.get('/owner', (c) => c.html(ownerDashboardPage()))
+app.get('/owner', (c) => c.html(ownerHomePage()))
 app.get('/owner/login', (c) => c.html(ownerLoginPage(c.env.KAKAO_CLIENT_ID || '', c.env.NAVER_CLIENT_ID || '')))
 app.get('/owner/apply', (c) => c.html(ownerApplyPage()))
+app.get('/owner/stations', (c) => c.html(ownerStationListPage()))
 app.get('/owner/stations/:id', (c) => c.html(ownerStationPage()))
+app.get('/owner/mypage', (c) => c.html(ownerMyPage()))
+app.get('/owner/dashboard', (c) => c.html(ownerDashboardPage())) // 구 대시보드 (호환)
 
 // ============ 어드민 HTML 페이지 ============
 app.get('/admin', (c) => c.html(adminDashboardPage()))

@@ -158,13 +158,19 @@ export function stationListPage(): string {
   const kakaoHead = '';
   return htmlPage('주유소 찾기', `
 <style>
-#mapWrap { width:100%; height:calc(100vh - 180px); }
+#mapWrap { width:100%; height:calc(100vh - 148px); position:relative; }
 #map { width:100%; height:100%; }
 #listWrap { display:none; }
+#myLocBtn {
+  position:absolute; right:14px; bottom:20px; z-index:100;
+  width:48px; height:48px; border-radius:50%;
+  background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.18);
+  border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+}
 </style>
 
 <div class="min-h-screen pb-24" style="display:flex;flex-direction:column">
-  <!-- 검색바 -->
+  <!-- 검색바 (내 위치 버튼 제거 → 지도 안으로 이동) -->
   <div class="bg-white sticky top-0 z-50 px-4 pt-3 pb-2 border-b" style="border-color:#eef1f7;padding-top:max(12px,env(safe-area-inset-top))">
     <div class="flex gap-2 mb-2">
       <div class="relative flex-1">
@@ -173,9 +179,6 @@ export function stationListPage(): string {
           oninput="debounce()" onkeydown="if(event.key==='Enter')doSearch()">
         <i class="fas fa-search absolute left-3.5 top-4 text-sm" style="color:#8e9ab4"></i>
       </div>
-      <button onclick="getLocation()" class="flex-shrink-0 px-3 rounded-xl text-sm font-semibold flex items-center gap-1.5" style="background:#f0ffd4;color:#1a2f5e">
-        <i class="fas fa-location-dot" style="color:#84cc16"></i>내 위치
-      </button>
     </div>
     <!-- 지도/목록 전환 탭 -->
     <div class="flex rounded-xl overflow-hidden" style="border:1px solid #eef1f7">
@@ -188,15 +191,26 @@ export function stationListPage(): string {
     </div>
   </div>
 
-  <!-- 카카오맵 -->
+  <!-- 카카오맵 + 내 위치 버튼 -->
   <div id="mapWrap">
     <div id="map"></div>
+    <!-- 지도 우측 하단 내 위치 동그라미 버튼 -->
+    <button id="myLocBtn" onclick="getLocation()" title="내 위치">
+      <i class="fas fa-location-crosshairs" style="font-size:20px;color:#3b82f6"></i>
+    </button>
   </div>
 
   <!-- 주유소 목록 -->
-  <div id="listWrap" class="p-4 space-y-2">
-    <div class="card text-center py-10" style="color:#8e9ab4">
-      <i class="fas fa-spinner fa-spin text-xl"></i>
+  <div id="listWrap" class="p-4">
+    <!-- 정렬 버튼 -->
+    <div class="flex gap-2 mb-3">
+      <button id="sortName" onclick="setSort('name')" class="px-3 py-1.5 rounded-full text-xs font-semibold" style="background:#1a2f5e;color:#bef264">이름순</button>
+      <button id="sortDist" onclick="setSort('distance')" class="px-3 py-1.5 rounded-full text-xs font-semibold" style="background:#f4f7fb;color:#8e9ab4">거리순</button>
+    </div>
+    <div id="stationList">
+      <div class="card text-center py-10" style="color:#8e9ab4">
+        <i class="fas fa-spinner fa-spin text-xl"></i>
+      </div>
     </div>
   </div>
 </div>
@@ -208,6 +222,22 @@ export function stationListPage(): string {
 </nav>
 <script>
 let map, overlays=[], myMarker=null, myCircle=null, mapVisible=true, dt;
+let _allStations=[], _sortBy='name', _myLat=null, _myLng=null;
+
+/* 정렬 버튼 */
+function setSort(by) {
+  _sortBy = by;
+  document.getElementById('sortName').style.background = by==='name' ? '#1a2f5e' : '#f4f7fb';
+  document.getElementById('sortName').style.color      = by==='name' ? '#bef264' : '#8e9ab4';
+  document.getElementById('sortDist').style.background = by==='distance' ? '#1a2f5e' : '#f4f7fb';
+  document.getElementById('sortDist').style.color      = by==='distance' ? '#bef264' : '#8e9ab4';
+  if (by==='distance' && _allStations.length && _allStations[0].distance==null) {
+    showToast('위치를 먼저 확인해주세요', 'warn'); return;
+  }
+  renderList(_sortBy==='distance'
+    ? [..._allStations].sort((a,b)=>(a.distance??99999)-(b.distance??99999))
+    : [..._allStations].sort((a,b)=>a.station_name.localeCompare(b.station_name,'ko')));
+}
 
 /* ── 지도/목록 탭 전환 ── */
 function showMap() {
@@ -235,7 +265,9 @@ function showList() {
 function debounce() { clearTimeout(dt); dt = setTimeout(doSearch, 400); }
 function doSearch()  {
   const kw = document.getElementById('si').value.trim();
-  loadStations(kw ? 'keyword=' + encodeURIComponent(kw) : '');
+  const q = kw ? 'keyword=' + encodeURIComponent(kw)
+    : (_myLat ? 'latitude='+_myLat+'&longitude='+_myLng : '');
+  loadStations(q);
 }
 
 /* ── 현재 위치 ── */
@@ -244,11 +276,10 @@ function getLocation() {
   showToast('위치를 가져오는 중...','info');
   navigator.geolocation.getCurrentPosition(
     function(p) {
-      var lat = p.coords.latitude, lng = p.coords.longitude;
+      _myLat = p.coords.latitude; _myLng = p.coords.longitude;
       if (myMarker) myMarker.setMap(null);
       if (myCircle) myCircle.setMap(null);
-      var pos = new kakao.maps.LatLng(lat, lng);
-      /* 내 위치 마커 - 파란 원 스타일 */
+      var pos = new kakao.maps.LatLng(_myLat, _myLng);
       myMarker = new kakao.maps.CustomOverlay({
         map: map, position: pos, yAnchor: 0.5,
         content: '<div style="width:16px;height:16px;border-radius:50%;background:#3b82f6;'
@@ -259,10 +290,9 @@ function getLocation() {
         strokeWeight:1, strokeColor:'#3b82f6', strokeOpacity:0.4,
         fillColor:'#3b82f6', fillOpacity:0.05
       });
-      map.setCenter(pos);
-      map.setLevel(5);
+      map.setCenter(pos); map.setLevel(5);
       showToast('내 위치를 찾았습니다', 'success');
-      loadStations('latitude=' + lat + '&longitude=' + lng);
+      loadStations('latitude=' + _myLat + '&longitude=' + _myLng);
     },
     function(err) {
       var msg = err.code === 1 ? '위치 권한을 허용해주세요'
@@ -313,14 +343,14 @@ document.addEventListener('click', function(e) {
 
 /* ── 목록 렌더 ── */
 function renderList(list) {
-  var el = document.getElementById('listWrap');
+  var el = document.getElementById('stationList');
   if (!list.length) {
     el.innerHTML = '<div class="card text-center py-12" style="color:#8e9ab4">'
       + '<i class="fas fa-search text-3xl mb-2 block"></i>검색 결과가 없습니다</div>';
     return;
   }
   el.innerHTML = list.map(function(s) {
-    return '<a href="/stations/' + s.id + '" class="card block fade-in" style="border:1px solid #eef1f7">'
+    return '<a href="/stations/' + s.id + '" class="card block mb-2 fade-in" style="border:1px solid #eef1f7">'
       + '<div class="flex items-center justify-between">'
         + '<div class="flex-1 min-w-0">'
           + '<h3 class="font-semibold truncate" style="color:#1a202c">' + s.station_name + '</h3>'
@@ -341,11 +371,14 @@ async function loadStations(q) {
   q = q || '';
   try {
     var r = await API.get('/stations/nearby' + (q ? '?' + q : ''));
-    var list = r.stations || [];
-    renderList(list);
-    renderMarkers(list);
+    _allStations = r.stations || [];
+    var sorted = _sortBy==='distance' && _allStations.length && _allStations[0].distance!=null
+      ? [..._allStations].sort((a,b)=>(a.distance??99999)-(b.distance??99999))
+      : [..._allStations].sort((a,b)=>a.station_name.localeCompare(b.station_name,'ko'));
+    renderList(sorted);
+    renderMarkers(_allStations);
   } catch(e) {
-    document.getElementById('listWrap').innerHTML =
+    document.getElementById('stationList').innerHTML =
       '<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>';
   }
 }

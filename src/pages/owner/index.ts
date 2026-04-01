@@ -2,3 +2,6 @@
 export { ownerLoginPage } from './auth'
 export { ownerDashboardPage, ownerApplyPage } from './dashboard'
 export { ownerStationPage } from './station'
+export { ownerHomePage } from './home'
+export { ownerStationListPage } from './stations'
+export { ownerMyPage } from './mypage'

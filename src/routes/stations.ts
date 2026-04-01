@@ -178,6 +178,72 @@ stations.get('/my-applications', authMiddleware, requireRole('station_owner'), a
   return c.json({ applications: apps.results })
 })
 
+// 사장님 홈 요약 (전체 주유소 합산 통계)
+stations.get('/owner-summary', authMiddleware, requireRole('station_owner'), async (c) => {
+  const user = c.get('user')
+  const uid = user.userId
+
+  // 플랫폼 수수료율
+  const setting = await c.env.DB.prepare(
+    `SELECT fee_rate FROM platform_settings ORDER BY id DESC LIMIT 1`
+  ).first<any>()
+  const feeRate = setting?.fee_rate ?? 15
+
+  // KST 날짜 기준
+  const todayKST  = new Date(Date.now() + 9*60*60*1000).toISOString().slice(0,10)
+  const monthStart = todayKST.slice(0,7) + '-01'
+
+  const rows = await c.env.DB.prepare(`
+    SELECT
+      /* 오늘 사용건 */
+      (SELECT COUNT(*) FROM coupon_usages cu
+       JOIN stations s ON cu.station_id = s.id
+       WHERE s.owner_id = ? AND date(cu.used_at) = ?) as today_count,
+
+      /* 오늘 매출 */
+      (SELECT COALESCE(SUM(cu.unit_price),0) FROM coupon_usages cu
+       JOIN stations s ON cu.station_id = s.id
+       WHERE s.owner_id = ? AND date(cu.used_at) = ?) as today_sales,
+
+      /* 이번달 사용건 */
+      (SELECT COUNT(*) FROM coupon_usages cu
+       JOIN stations s ON cu.station_id = s.id
+       WHERE s.owner_id = ? AND cu.used_at >= ?) as month_count,
+
+      /* 이번달 매출 */
+      (SELECT COALESCE(SUM(cu.unit_price),0) FROM coupon_usages cu
+       JOIN stations s ON cu.station_id = s.id
+       WHERE s.owner_id = ? AND cu.used_at >= ?) as month_sales,
+
+      /* 정산 대기 금액 (미정산 전체) */
+      (SELECT COALESCE(SUM(cu.unit_price),0) FROM coupon_usages cu
+       JOIN stations s ON cu.station_id = s.id
+       WHERE s.owner_id = ? AND (cu.settled IS NULL OR cu.settled = 0)) as pending_sales,
+
+      /* 현재 활성 쿠폰 구매건 (미사용 잔여분 보유) */
+      (SELECT COUNT(*) FROM coupon_purchases cp
+       JOIN stations s ON cp.station_id = s.id
+       WHERE s.owner_id = ? AND cp.status IN ('active','partial_refunded') AND cp.remaining_uses > 0) as active_coupons
+  `).bind(uid, todayKST, uid, todayKST, uid, monthStart, uid, monthStart, uid, uid).first<any>()
+
+  const pendingSales  = rows?.pending_sales  || 0
+  const todaySales    = rows?.today_sales    || 0
+  const monthSales    = rows?.month_sales    || 0
+
+  return c.json({
+    fee_rate:            feeRate,
+    today_count:         rows?.today_count    || 0,
+    today_sales:         todaySales,
+    today_settle:        Math.floor(todaySales    * (1 - feeRate / 100)),
+    month_count:         rows?.month_count    || 0,
+    month_sales:         monthSales,
+    month_settle:        Math.floor(monthSales    * (1 - feeRate / 100)),
+    pending_sales:       pendingSales,
+    pending_settle:      Math.floor(pendingSales  * (1 - feeRate / 100)),
+    active_coupons:      rows?.active_coupons || 0,
+  })
+})
+
 // 내 주유소 목록
 stations.get('/my-stations', authMiddleware, requireRole('station_owner'), async (c) => {
   const user = c.get('user')

@@ -410,39 +410,101 @@ async function loadUsages(page = 1) {
 }
 
 /* ══════════════════════════════════
-   정산 탭
+   정산 탭 - 연/월 선택기
 ══════════════════════════════════ */
+let _settleYear, _settleMonth;
+
+function initSettleMonth() {
+  const now = new Date(Date.now() + 9*60*60*1000);
+  _settleYear  = now.getFullYear();
+  _settleMonth = now.getMonth() + 1;
+}
+
+function shiftSettleMonth(d) {
+  _settleMonth += d;
+  if (_settleMonth > 12) { _settleMonth = 1;  _settleYear++; }
+  if (_settleMonth < 1)  { _settleMonth = 12; _settleYear--; }
+  loadSettlements();
+}
+
+function getSettleYM() {
+  return _settleYear + '-' + String(_settleMonth).padStart(2,'0');
+}
+
 async function loadSettlements() {
   const el = document.getElementById('ct_settlement');
   el.innerHTML = spinner();
+
+  // 미래 달 방지
+  const now = new Date(Date.now() + 9*60*60*1000);
+  const isFuture = (_settleYear > now.getFullYear()) ||
+    (_settleYear === now.getFullYear() && _settleMonth > now.getMonth()+1);
+  if (isFuture) { _settleMonth--; if (_settleMonth < 1) { _settleMonth=12; _settleYear--; } }
+
+  const ym = getSettleYM();
+  const lastDay = new Date(_settleYear, _settleMonth, 0).getDate();
+  const mm = String(_settleMonth).padStart(2,'0');
+  const isThisMonth = (_settleYear===now.getFullYear() && _settleMonth===now.getMonth()+1);
+
   try {
-    const r = await API.get('/stations/my-stations/' + stationId + '/settlements');
+    const r = await API.get('/stations/my-stations/' + stationId + '/settlements?year_month=' + ym);
     const list = r.settlements || [];
 
+    const pendingGross = r.pending_gross  || 0;
+    const pendingNet   = r.pending_amount || 0;
+    const settledAmt   = r.settled_amount || 0;
+    const pendingCnt   = r.pending_count  || 0;
+    const settledCnt   = r.settled_count  || 0;
+
+    // 미래 달 버튼 비활성
+    const nextDisabled = isThisMonth ? 'opacity:0.3;pointer-events:none' : '';
+
     let html = \`
-      <div class="card mb-4" style="background:#0a1628;border:none">
-        <p class="text-xs mb-1.5" style="color:rgba(255,255,255,.5)"><i class="fas fa-clock mr-1" style="color:#84cc16"></i>정산 대기 금액</p>
-        <p class="text-3xl font-bold mb-1" style="color:#bef264">\${formatPrice(r.pending_amount || 0)}</p>
-        <p class="text-xs" style="color:rgba(255,255,255,.4)">플랫폼 수수료 15% 차감 후 익일 지급</p>
+      <!-- 연/월 선택기 -->
+      <div class="flex items-center justify-between rounded-2xl px-4 py-3 mb-4" style="background:#0a1628">
+        <button onclick="shiftSettleMonth(-1)" class="w-9 h-9 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,.12)">
+          <i class="fas fa-chevron-left text-sm" style="color:#fff"></i>
+        </button>
+        <div class="text-center">
+          <p class="text-lg font-black" style="color:#bef264">\${_settleYear}년 \${_settleMonth}월</p>
+          <p class="text-xs mt-0.5" style="color:rgba(255,255,255,.4)">\${_settleYear}.\${mm}.01 ~ \${mm}.\${String(lastDay).padStart(2,'0')}</p>
+        </div>
+        <button onclick="shiftSettleMonth(1)" class="w-9 h-9 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,.12);\${nextDisabled}">
+          <i class="fas fa-chevron-right text-sm" style="color:#fff"></i>
+        </button>
+      </div>
+
+      <!-- 정산 요약 2칸 -->
+      <div class="grid grid-cols-2 gap-3 mb-4">
+        <div class="card text-center py-4" style="border:1px solid #eef1f7">
+          <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-clock mr-1" style="color:#fbbf24"></i>정산 대기</p>
+          <p class="text-xl font-bold" style="color:#d97706">\${formatPrice(pendingNet)}</p>
+          <p class="text-xs mt-0.5" style="color:#8e9ab4">사용액 \${formatPrice(pendingGross)} · \${pendingCnt}건</p>
+        </div>
+        <div class="card text-center py-4" style="border:1px solid #eef1f7">
+          <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-check-circle mr-1" style="color:#4ade80"></i>정산 완료</p>
+          <p class="text-xl font-bold" style="color:#16a34a">\${formatPrice(settledAmt)}</p>
+          <p class="text-xs mt-0.5" style="color:#8e9ab4">\${settledCnt}건 완료</p>
+        </div>
       </div>
 
       <div class="card mb-4" style="background:#f4f7fb;border:1px solid #eef1f7">
         <h4 class="text-xs font-semibold mb-2" style="color:#1a2f5e"><i class="fas fa-info-circle mr-1" style="color:#84cc16"></i>정산 안내</h4>
         <ul class="text-xs space-y-1" style="color:#4a5568">
-          <li>· 매출 금액의 15%가 플랫폼 수수료로 차감됩니다</li>
+          <li>· 사용액의 15%가 플랫폼 수수료로 차감됩니다</li>
           <li>· 정산은 매주 월요일 기준으로 처리됩니다</li>
           <li>· 지급은 처리 다음 영업일에 완료됩니다</li>
         </ul>
       </div>
 
-      <h3 class="section-title">정산 내역</h3>
+      <h3 class="section-title">정산 상세 내역</h3>
     \`;
 
     if (list.length) {
       html += list.map(s => {
-        const grossStr  = formatPrice(s.gross_amount || (s.net_amount + s.platform_fee));
-        const feeStr    = formatPrice(s.platform_fee);
-        const netStr    = formatPrice(s.net_amount);
+        const grossStr = formatPrice(s.gross_amount || (s.net_amount + s.platform_fee));
+        const feeStr   = formatPrice(s.platform_fee);
+        const netStr   = formatPrice(s.net_amount);
         const isCompleted = s.status === 'completed';
         return \`
         <div class="card mb-3" style="border:1px solid #eef1f7">
@@ -457,7 +519,7 @@ async function loadSettlements() {
           </div>
           <div class="pt-2 mt-1 space-y-1 text-sm border-t" style="border-color:#eef1f7">
             <div class="flex justify-between">
-              <span style="color:#8e9ab4">매출 합계</span>
+              <span style="color:#8e9ab4">사용 합계</span>
               <span style="color:#1a202c">\${grossStr}</span>
             </div>
             <div class="flex justify-between">
@@ -472,10 +534,9 @@ async function loadSettlements() {
         </div>\`;
       }).join('');
     } else {
-      html += \`<div class="card text-center py-14" style="color:#8e9ab4">
+      html += \`<div class="card text-center py-12" style="color:#8e9ab4">
         <i class="fas fa-money-bill-wave text-4xl mb-3" style="color:#dde3ef"></i>
-        <p class="font-medium">정산 내역이 없습니다</p>
-        <p class="text-xs mt-1">쿠폰 판매 후 정산이 시작됩니다</p>
+        <p class="font-medium">이 달 정산 내역이 없습니다</p>
       </div>\`;
     }
     el.innerHTML = html;
@@ -490,6 +551,7 @@ function errBox(msg) { return '<div class="card text-center py-8" style="color:#
 window.addEventListener('DOMContentLoaded', async () => {
   const u = requireAuth('station_owner');
   if (!u) return;
+  initSettleMonth();
   try {
     const r = await API.get('/stations/my-stations/' + stationId);
     document.getElementById('pageTitle').textContent = r.station.station_name;

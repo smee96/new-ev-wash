@@ -19,29 +19,25 @@ export function ownerHomePage(): string {
 
   <div class="p-4 space-y-4" style="margin-top:16px">
 
-    <!-- 이번달 매출 요약 카드 (메인) -->
+    <!-- 이번달 사용 현황 카드 (메인) -->
     <div class="card" style="background:#0a1628;border:none;border-radius:20px;padding:20px">
       <div class="flex items-center justify-between mb-3">
         <p class="text-xs font-medium" style="color:rgba(255,255,255,.5)">
           <i class="fas fa-calendar-alt mr-1" style="color:#84cc16"></i>
-          <span id="monthLabel">이번달</span> 매출 현황
+          <span id="monthLabel">이번달</span> 사용 현황
         </p>
         <span class="text-xs px-2 py-0.5 rounded-full" style="background:rgba(132,204,22,.15);color:#84cc16" id="feeRateBadge">수수료 15%</span>
       </div>
 
-      <!-- 이번달 핵심 수치 3칸 -->
-      <div class="grid grid-cols-3 gap-2 mb-4">
+      <!-- 이번달 핵심 수치 2칸 -->
+      <div class="grid grid-cols-2 gap-2 mb-4">
         <div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
-          <p class="text-lg font-bold leading-tight" style="color:#bef264" id="monthSellSales">-</p>
-          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">판매액</p>
-        </div>
-        <div class="rounded-xl p-3 text-center" style="background:rgba(255,255,255,.07)">
-          <p class="text-lg font-bold leading-tight" style="color:#fff" id="monthUseSales">-</p>
-          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">사용액</p>
+          <p class="text-2xl font-bold leading-tight" style="color:#fff" id="monthUseCount">-</p>
+          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">이번달 사용건수</p>
         </div>
         <div class="rounded-xl p-3 text-center" style="background:rgba(132,204,22,.12)">
           <p class="text-lg font-bold leading-tight" style="color:#84cc16" id="monthUseSettle">-</p>
-          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">예상정산</p>
+          <p class="text-xs mt-1" style="color:rgba(255,255,255,.4)">예상 정산액</p>
         </div>
       </div>
 
@@ -75,17 +71,10 @@ export function ownerHomePage(): string {
 
       <!-- 오늘 -->
       <div id="ct_today" class="p-4">
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div class="rounded-xl p-3" style="background:#f4f7fb">
-            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-shopping-cart mr-1"></i>쿠폰 판매</p>
-            <p class="text-lg font-bold" style="color:#1a2f5e" id="todaySellSales">-</p>
-            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="todaySellCount">0</span>건 판매</p>
-          </div>
-          <div class="rounded-xl p-3" style="background:#f4f7fb">
-            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-car-wash mr-1"></i>세차 사용</p>
-            <p class="text-lg font-bold" style="color:#1a2f5e" id="todayUseSales">-</p>
-            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="todayUseCount">0</span>건 사용</p>
-          </div>
+        <div class="rounded-xl p-3 mb-3" style="background:#f4f7fb">
+          <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-car-wash mr-1"></i>세차 사용</p>
+          <p class="text-2xl font-bold" style="color:#1a2f5e" id="todayUseCount">-건</p>
+          <p class="text-sm mt-0.5" style="color:#1a2f5e" id="todayUseSales">-</p>
         </div>
         <div class="rounded-xl p-3 flex items-center justify-between" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac">
           <div class="flex items-center gap-2">
@@ -98,17 +87,10 @@ export function ownerHomePage(): string {
 
       <!-- 이번달 -->
       <div id="ct_month" class="p-4 hidden">
-        <div class="grid grid-cols-2 gap-3 mb-3">
-          <div class="rounded-xl p-3" style="background:#f4f7fb">
-            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-shopping-cart mr-1"></i>쿠폰 판매</p>
-            <p class="text-lg font-bold" style="color:#1a2f5e" id="monthSellSales2">-</p>
-            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="monthSellCount">0</span>건 판매</p>
-          </div>
-          <div class="rounded-xl p-3" style="background:#f4f7fb">
-            <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-car-wash mr-1"></i>세차 사용</p>
-            <p class="text-lg font-bold" style="color:#1a2f5e" id="monthUseSales2">-</p>
-            <p class="text-xs mt-0.5" style="color:#8e9ab4"><span id="monthUseCount">0</span>건 사용</p>
-          </div>
+        <div class="rounded-xl p-3 mb-3" style="background:#f4f7fb">
+          <p class="text-xs mb-1" style="color:#8e9ab4"><i class="fas fa-car-wash mr-1"></i>세차 사용</p>
+          <p class="text-2xl font-bold" style="color:#1a2f5e" id="monthUseCount2">-건</p>
+          <p class="text-sm mt-0.5" style="color:#1a2f5e" id="monthUseSales2">-</p>
         </div>
         <div class="rounded-xl p-3 flex items-center justify-between" style="background:linear-gradient(135deg,#f0fdf4,#dcfce7);border:1px solid #86efac">
           <div class="flex items-center gap-2">
@@ -201,29 +183,24 @@ window.addEventListener('DOMContentLoaded', async () => {
     const fr = r.fee_rate ?? 15;
     document.getElementById('feeRateBadge').textContent = '수수료 ' + fr + '%';
 
-    // 메인 카드 - 이번달
-    document.getElementById('monthSellSales').textContent  = fp(r.month_sell_sales);
-    document.getElementById('monthUseSales').textContent   = fp(r.month_use_sales);
+    // 메인 카드 - 이번달 사용건수 + 예상정산 + 정산완료/대기
+    document.getElementById('monthUseCount').textContent   = (r.month_use_count||0) + '건';
     document.getElementById('monthUseSettle').textContent  = fp(r.month_use_settle);
     document.getElementById('monthSettled').textContent    = fp(r.month_settled);
     document.getElementById('pendingSettle').textContent   = fp(r.pending_settle);
 
-    // 오늘 탭
-    document.getElementById('todaySellSales').textContent  = fp(r.today_sell_sales);
-    document.getElementById('todaySellCount').textContent  = (r.today_sell_count||0);
+    // 오늘 탭 - 사용 중심
+    document.getElementById('todayUseCount').textContent   = (r.today_use_count||0) + '건';
     document.getElementById('todayUseSales').textContent   = fp(r.today_use_sales);
-    document.getElementById('todayUseCount').textContent   = (r.today_use_count||0);
     document.getElementById('todayUseSettle').textContent  = fp(r.today_use_settle);
 
-    // 이번달 탭
-    document.getElementById('monthSellSales2').textContent = fp(r.month_sell_sales);
-    document.getElementById('monthSellCount').textContent  = (r.month_sell_count||0);
+    // 이번달 탭 - 사용 중심
+    document.getElementById('monthUseCount2').textContent  = (r.month_use_count||0) + '건';
     document.getElementById('monthUseSales2').textContent  = fp(r.month_use_sales);
-    document.getElementById('monthUseCount').textContent   = (r.month_use_count||0);
     document.getElementById('monthUseSettle2').textContent = fp(r.month_use_settle);
 
   } catch(e) {
-    document.getElementById('monthSellSales').textContent = '불러오기 실패';
+    document.getElementById('monthUseSettle').textContent = '불러오기 실패';
   }
 
   // 주유소 미리보기

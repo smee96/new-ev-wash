@@ -235,22 +235,18 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
   const limit = 100  // 월별 조회이므로 넉넉하게
   const offset = (page - 1) * limit
 
-  // UTC 기준 월 범위 계산 (KST = UTC+9, 이를 감안해 범위를 UTC-15h ~ UTC+15h로 넉넉히)
+  // DB 시간값이 KST로 저장되어 있으므로 그대로 LIKE 패턴으로 비교
   let dateFrom = ''
   let dateTo   = ''
   if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
     const [y, m] = yearMonth.split('-').map(Number)
-    // KST 해당 월 1일 00:00 → UTC 전날 15:00
-    // KST 해당 월 말일 23:59 → UTC 당일 14:59
-    // 여유있게 UTC 기준 전월말 ~ 익월초로 처리
-    const from = new Date(y, m - 1, 1)
-    const to   = new Date(y, m, 1)
-    dateFrom = new Date(from.getTime() - 9*60*60*1000).toISOString().replace('T',' ').slice(0,19)
-    dateTo   = new Date(to.getTime()   - 9*60*60*1000).toISOString().replace('T',' ').slice(0,19)
+    dateFrom = yearMonth + '-01 00:00:00'
+    const lastDay = new Date(y, m, 0).getDate()
+    dateTo = yearMonth + '-' + String(lastDay).padStart(2,'0') + ' 23:59:59'
   }
 
   const addDateFilter = (col: string) =>
-    dateFrom ? ` AND ${col} >= '${dateFrom}' AND ${col} < '${dateTo}'` : ''
+    dateFrom ? ` AND ${col} BETWEEN '${dateFrom}' AND '${dateTo}'` : ''
 
   // 1) 구매 내역
   const buyRows = await c.env.DB.prepare(`

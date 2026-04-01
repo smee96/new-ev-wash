@@ -575,34 +575,71 @@ stations.get('/my-stations/:id/usages', authMiddleware, requireRole('station_own
   ).bind(stationId, limit, offset).all()
 
   const total = await c.env.DB.prepare(
-    `SELECT COUNT(*) as cnt FROM coupon_usages WHERE station_id = ?`
+    `SELECT COUNT(*) as cnt, COALESCE(SUM(unit_price),0) as total_revenue
+     FROM coupon_usages WHERE station_id = ?`
   ).bind(stationId).first<any>()
 
-  return c.json({ usages: usages.results, total: total?.cnt || 0, page, limit })
+  return c.json({ usages: usages.results, total: total?.cnt || 0, total_revenue: total?.total_revenue || 0, page, limit })
 })
 
-// 정산 현황 (사장님)
+// 정산 현황 (사장님) - 연/월 필터 지원
 stations.get('/my-stations/:id/settlements', authMiddleware, requireRole('station_owner'), async (c) => {
   const user = c.get('user')
   const stationId = c.req.param('id')
+  const yearMonth = c.req.query('year_month') || ''  // 'YYYY-MM'
 
   const station = await c.env.DB.prepare(
     `SELECT id FROM stations WHERE id = ? AND owner_id = ?`
   ).bind(stationId, user.userId).first()
   if (!station) return c.json({ error: '권한이 없습니다.' }, 403)
 
+  // 연/월 범위 (DB 시간이 KST로 저장)
+  let dateFrom = '', dateTo = ''
+  if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
+    const [y, m] = yearMonth.split('-').map(Number)
+    dateFrom = yearMonth + '-01'
+    const lastDay = new Date(y, m, 0).getDate()
+    dateTo = yearMonth + '-' + String(lastDay).padStart(2,'0')
+  }
+  const settleDateFilter = dateFrom
+    ? `AND settlement_date BETWEEN '${dateFrom}' AND '${dateTo}'`
+    : ''
+  const usageDateFilter = dateFrom
+    ? `AND date(used_at) BETWEEN '${dateFrom}' AND '${dateTo}'`
+    : ''
+
+  // 정산 목록
   const settlements = await c.env.DB.prepare(
     `SELECT id, settlement_date, gross_amount, platform_fee, net_amount, usage_count, status, processed_at
-     FROM settlements WHERE station_id = ? ORDER BY settlement_date DESC LIMIT 30`
+     FROM settlements WHERE station_id = ? ${settleDateFilter}
+     ORDER BY settlement_date DESC LIMIT 50`
   ).bind(stationId).all()
 
-  // 미정산 금액 (어제까지 사용된 쿠폰 중 미정산)
-  const pending = await c.env.DB.prepare(
-    `SELECT SUM(unit_price) as total FROM coupon_usages
-     WHERE station_id = ? AND settled = 0 AND used_at < date('now')`
+  // 해당 기간 완료된 정산 합계
+  const settledTotal = await c.env.DB.prepare(
+    `SELECT COALESCE(SUM(net_amount),0) as total, COUNT(*) as cnt
+     FROM settlements WHERE station_id = ? AND status='completed' ${settleDateFilter}`
   ).bind(stationId).first<any>()
 
-  return c.json({ settlements: settlements.results, pending_amount: pending?.total || 0 })
+  // 해당 기간 미정산 사용 금액 (settled=0)
+  const pendingUsage = await c.env.DB.prepare(
+    `SELECT COALESCE(SUM(unit_price),0) as total, COUNT(*) as cnt
+     FROM coupon_usages WHERE station_id = ? AND settled = 0 ${usageDateFilter}`
+  ).bind(stationId).first<any>()
+
+  const pendingGross  = pendingUsage?.total || 0
+  const feeRate       = 0.15
+  const pendingNet    = Math.floor(pendingGross * (1 - feeRate))
+
+  return c.json({
+    settlements:      settlements.results,
+    settled_amount:   settledTotal?.total    || 0,
+    settled_count:    settledTotal?.cnt      || 0,
+    pending_gross:    pendingGross,
+    pending_amount:   pendingNet,
+    pending_count:    pendingUsage?.cnt      || 0,
+    year_month:       yearMonth,
+  })
 })
 
 // ============ 파일 업로드 (R2) ============

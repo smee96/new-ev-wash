@@ -229,10 +229,28 @@ coupons.get('/my/history/all', authMiddleware, requireRole('customer'), async (c
 // 통합 활동 내역 (결제+사용+환불)
 coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) => {
   const user = c.get('user')
-  const page  = parseInt(c.req.query('page')  || '1')
-  const type  = c.req.query('type') || 'all'   // all | buy | use | refund
-  const limit = 20
+  const page       = parseInt(c.req.query('page') || '1')
+  const type       = c.req.query('type')       || 'all'   // all | buy | use | refund
+  const yearMonth  = c.req.query('year_month') || ''      // 'YYYY-MM' 형식
+  const limit = 100  // 월별 조회이므로 넉넉하게
   const offset = (page - 1) * limit
+
+  // UTC 기준 월 범위 계산 (KST = UTC+9, 이를 감안해 범위를 UTC-15h ~ UTC+15h로 넉넉히)
+  let dateFrom = ''
+  let dateTo   = ''
+  if (yearMonth && /^\d{4}-\d{2}$/.test(yearMonth)) {
+    const [y, m] = yearMonth.split('-').map(Number)
+    // KST 해당 월 1일 00:00 → UTC 전날 15:00
+    // KST 해당 월 말일 23:59 → UTC 당일 14:59
+    // 여유있게 UTC 기준 전월말 ~ 익월초로 처리
+    const from = new Date(y, m - 1, 1)
+    const to   = new Date(y, m, 1)
+    dateFrom = new Date(from.getTime() - 9*60*60*1000).toISOString().replace('T',' ').slice(0,19)
+    dateTo   = new Date(to.getTime()   - 9*60*60*1000).toISOString().replace('T',' ').slice(0,19)
+  }
+
+  const addDateFilter = (col: string) =>
+    dateFrom ? ` AND ${col} >= '${dateFrom}' AND ${col} < '${dateTo}'` : ''
 
   // 1) 구매 내역
   const buyRows = await c.env.DB.prepare(`
@@ -248,7 +266,7 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     FROM coupon_purchases p
     JOIN coupons c ON p.coupon_id = c.id
     JOIN stations s ON p.station_id = s.id
-    WHERE p.user_id = ?
+    WHERE p.user_id = ?${addDateFilter('p.created_at')}
   `).bind(user.userId).all()
 
   // 2) 사용 내역
@@ -265,7 +283,7 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     FROM coupon_usages cu
     JOIN coupons c ON cu.coupon_id = c.id
     JOIN stations s ON cu.station_id = s.id
-    WHERE cu.user_id = ?
+    WHERE cu.user_id = ?${addDateFilter('cu.used_at')}
   `).bind(user.userId).all()
 
   // 3) 환불 내역
@@ -283,7 +301,7 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     JOIN coupon_purchases cp ON r.purchase_id = cp.id
     JOIN coupons c ON cp.coupon_id = c.id
     JOIN stations s ON r.station_id = s.id
-    WHERE r.user_id = ?
+    WHERE r.user_id = ?${addDateFilter('r.created_at')}
   `).bind(user.userId).all()
 
   // 합쳐서 event_at 기준 내림차순 정렬
@@ -292,11 +310,7 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
   if (type === 'all' || type === 'use')    all = all.concat(useRows.results)
   if (type === 'all' || type === 'refund') all = all.concat(refundRows.results)
 
-  all.sort((a, b) => {
-    const ta = new Date(a.event_at).getTime()
-    const tb = new Date(b.event_at).getTime()
-    return tb - ta
-  })
+  all.sort((a, b) => new Date(b.event_at).getTime() - new Date(a.event_at).getTime())
 
   const total = all.length
   const paged = all.slice(offset, offset + limit)

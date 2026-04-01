@@ -551,6 +551,40 @@ export function myActivityPage(): string {
     <span class="page-header-title">이용 내역</span>
   </div>
 
+  <!-- 월 선택기 -->
+  <div class="px-4 pt-4 pb-0">
+    <div class="flex items-center justify-between rounded-2xl px-4 py-3" style="background:#0a1628">
+      <button onclick="shiftMonth(-1)" class="w-9 h-9 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,.12)">
+        <i class="fas fa-chevron-left text-sm" style="color:#fff"></i>
+      </button>
+      <div class="text-center">
+        <p id="monthLabel" class="text-lg font-black" style="color:#bef264">2026년 4월</p>
+        <p id="monthRange" class="text-xs mt-0.5" style="color:rgba(255,255,255,.4)">2026.04.01 ~ 04.30</p>
+      </div>
+      <button onclick="shiftMonth(1)" id="nextMonthBtn" class="w-9 h-9 rounded-full flex items-center justify-center" style="background:rgba(255,255,255,.12)">
+        <i class="fas fa-chevron-right text-sm" style="color:#fff"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- 월 요약 -->
+  <div class="px-4 pt-3">
+    <div class="grid grid-cols-3 gap-2" id="monthlySummary">
+      <div class="rounded-xl p-3 text-center" style="background:#e0f2fe">
+        <p class="text-xs mb-1" style="color:#0284c7">결제</p>
+        <p class="font-bold text-sm" style="color:#0284c7" id="sumBuy">-</p>
+      </div>
+      <div class="rounded-xl p-3 text-center" style="background:#dcfce7">
+        <p class="text-xs mb-1" style="color:#16a34a">사용</p>
+        <p class="font-bold text-sm" style="color:#16a34a" id="sumUse">-</p>
+      </div>
+      <div class="rounded-xl p-3 text-center" style="background:#fef3c7">
+        <p class="text-xs mb-1" style="color:#d97706">환불</p>
+        <p class="font-bold text-sm" style="color:#d97706" id="sumRefund">-</p>
+      </div>
+    </div>
+  </div>
+
   <!-- 필터 탭 -->
   <div class="px-4 pt-3 pb-0">
     <div class="flex gap-2">
@@ -566,9 +600,6 @@ export function myActivityPage(): string {
       <i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i>
     </div>
   </div>
-  <div id="loadMoreWrap" class="px-4 pb-4 hidden">
-    <button onclick="loadMore()" class="btn btn-gray w-full">더 보기</button>
-  </div>
 </div>
 
 <nav class="bottom-nav">
@@ -580,40 +611,68 @@ export function myActivityPage(): string {
 
 <script>
 let _curFilter = 'all';
-let _curPage   = 1;
-let _hasMore   = false;
+let _curYear, _curMonth;   // 현재 보고 있는 연/월
 
+// ── 월 이동 ──────────────────────────────────────────
+function shiftMonth(d) {
+  _curMonth += d;
+  if (_curMonth > 12) { _curMonth = 1;  _curYear++; }
+  if (_curMonth < 1)  { _curMonth = 12; _curYear--; }
+  updateMonthUI();
+  loadActivity();
+}
+
+function updateMonthUI() {
+  const now = new Date(Date.now() + 9*60*60*1000);
+  const isThisMonth = (_curYear === now.getFullYear() && _curMonth === (now.getMonth()+1));
+  const isFuture    = (_curYear > now.getFullYear()) ||
+                      (_curYear === now.getFullYear() && _curMonth > now.getMonth()+1);
+
+  // 미래 달은 이동 불가
+  document.getElementById('nextMonthBtn').style.opacity = isFuture ? '0.3' : '1';
+  document.getElementById('nextMonthBtn').disabled = isFuture;
+
+  const lastDay = new Date(_curYear, _curMonth, 0).getDate();
+  const mm = String(_curMonth).padStart(2,'0');
+  document.getElementById('monthLabel').textContent = _curYear+'년 '+_curMonth+'월';
+  document.getElementById('monthRange').textContent =
+    _curYear+'.'+mm+'.01 ~ '+mm+'.'+String(lastDay).padStart(2,'0');
+}
+
+function getYearMonth() {
+  return _curYear+'-'+String(_curMonth).padStart(2,'0');
+}
+
+// ── 필터 탭 ──────────────────────────────────────────
 function setFilter(f) {
   _curFilter = f;
-  _curPage   = 1;
   ['all','buy','use','refund'].forEach(k => {
     const el = document.getElementById('ftab_'+k);
     const on = k === f;
-    el.style.background   = on ? '#0a1628' : '#f4f7fb';
-    el.style.color        = on ? '#fff'     : '#8e9ab4';
-    el.style.fontWeight   = on ? '700'      : '500';
+    el.style.background = on ? '#0a1628' : '#f4f7fb';
+    el.style.color      = on ? '#fff'    : '#8e9ab4';
+    el.style.fontWeight = on ? '700'     : '500';
   });
-  document.getElementById('content').innerHTML = '<div class="card text-center py-12"><i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i></div>';
-  loadActivity(1, true);
+  renderFiltered();
 }
 
+// ── 아이템 설정 ──────────────────────────────────────
 const TYPE_CONFIG = {
-  buy:    { icon:'fa-shopping-cart',  bg:'#e0f2fe', iconColor:'#0284c7', label:'결제',   amtColor:'#0284c7',  amtPrefix:'-' },
-  use:    { icon:'fa-car-wash',       bg:'#dcfce7', iconColor:'#16a34a', label:'세차사용', amtColor:'#16a34a', amtPrefix:'' },
-  refund: { icon:'fa-undo-alt',       bg:'#fef3c7', iconColor:'#d97706', label:'환불',   amtColor:'#d97706',  amtPrefix:'+' },
+  buy:    { icon:'fa-shopping-cart', bg:'#e0f2fe', iconColor:'#0284c7', label:'결제',    amtColor:'#0284c7', amtPrefix:'-' },
+  use:    { icon:'fa-car-wash',      bg:'#dcfce7', iconColor:'#16a34a', label:'세차사용', amtColor:'#16a34a', amtPrefix:''  },
+  refund: { icon:'fa-undo-alt',      bg:'#fef3c7', iconColor:'#d97706', label:'환불',    amtColor:'#d97706', amtPrefix:'+' },
 };
-
 const BUY_STATUS = {
-  active:           { text:'유효', cls:'badge-green' },
+  active:           { text:'유효',     cls:'badge-green'  },
   partial_refunded: { text:'일부환불', cls:'badge-yellow' },
-  refunded:         { text:'환불완료', cls:'badge-gray' },
-  used:             { text:'사용완료', cls:'badge-gray' },
+  refunded:         { text:'환불완료', cls:'badge-gray'   },
+  used:             { text:'사용완료', cls:'badge-gray'   },
 };
 const REFUND_STATUS = {
-  processing: { text:'처리중', cls:'badge-yellow' },
-  completed:  { text:'환불완료', cls:'badge-green' },
-  failed:     { text:'실패', cls:'badge-red' },
-  cancelled:  { text:'취소', cls:'badge-gray' },
+  processing: { text:'처리중',   cls:'badge-yellow' },
+  completed:  { text:'환불완료', cls:'badge-green'  },
+  failed:     { text:'실패',     cls:'badge-red'    },
+  cancelled:  { text:'취소',     cls:'badge-gray'   },
 };
 
 function renderItem(item) {
@@ -632,7 +691,7 @@ function renderItem(item) {
   if (item.type === 'use')    subLine = (item.wash_count_used||1)+'회 세차';
   if (item.type === 'refund') subLine = (item.quantity||1)+'회 환불신청';
 
-  const amtStr = (cfg.amtPrefix ? cfg.amtPrefix : '') + (item.amount||0).toLocaleString() + '원';
+  const amtStr = cfg.amtPrefix + (item.amount||0).toLocaleString() + '원';
 
   return '<div class="card flex items-center gap-3" style="padding:14px 16px">'
     +'<div class="flex-shrink-0 w-11 h-11 rounded-2xl flex items-center justify-center" style="background:'+cfg.bg+'">'
@@ -643,8 +702,8 @@ function renderItem(item) {
         +'<span class="text-xs font-semibold px-1.5 py-0.5 rounded" style="background:'+cfg.bg+';color:'+cfg.iconColor+'">'+cfg.label+'</span>'
         + statusBadge
       +'</div>'
-      +'<p class="font-semibold text-sm truncate" style="color:#1a202c">'+( item.coupon_title||'-')+'</p>'
-      +'<p class="text-xs truncate" style="color:#8e9ab4">'+( item.station_name||'-')+' · '+subLine+'</p>'
+      +'<p class="font-semibold text-sm truncate" style="color:#1a202c">'+(item.coupon_title||'-')+'</p>'
+      +'<p class="text-xs truncate" style="color:#8e9ab4">'+(item.station_name||'-')+' · '+subLine+'</p>'
     +'</div>'
     +'<div class="text-right flex-shrink-0">'
       +'<p class="font-bold text-sm" style="color:'+cfg.amtColor+'">'+amtStr+'</p>'
@@ -653,40 +712,78 @@ function renderItem(item) {
   +'</div>';
 }
 
-async function loadActivity(page, reset) {
+// ── 전체 데이터 캐시 → 필터만 클라이언트에서 처리 ──
+let _allItems = [];
+
+function renderFiltered() {
   const el = document.getElementById('content');
-  try {
-    const r = await API.get('/coupons/my/activity?type='+_curFilter+'&page='+page);
-    const items = r.items || [];
-    _hasMore = (page * r.limit) < r.total;
-    document.getElementById('loadMoreWrap').classList.toggle('hidden', !_hasMore);
-    if (!items.length && reset) {
-      el.innerHTML = '<div class="card text-center py-14">'
-        +'<i class="fas fa-receipt text-5xl mb-4" style="color:#dde3ef"></i>'
-        +'<p class="font-medium mb-1" style="color:#4a5568">내역이 없습니다</p>'
-        +'<p class="text-sm" style="color:#8e9ab4">결제·사용·환불 내역이 여기에 표시됩니다</p>'
-      +'</div>';
-      return;
-    }
-    const html = items.map(renderItem).join('');
-    if (reset) el.innerHTML = html;
-    else el.innerHTML += html;
-  } catch(e) {
-    if (reset) el.innerHTML = '<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>';
+  const filtered = _curFilter === 'all'
+    ? _allItems
+    : _allItems.filter(i => i.type === _curFilter);
+
+  if (!filtered.length) {
+    el.innerHTML = '<div class="card text-center py-14">'
+      +'<i class="fas fa-receipt text-5xl mb-4" style="color:#dde3ef"></i>'
+      +'<p class="font-medium mb-1" style="color:#4a5568">내역이 없습니다</p>'
+      +'<p class="text-sm" style="color:#8e9ab4">해당 월에 '+
+        (_curFilter==='all'?'이용 내역이':_curFilter==='buy'?'결제 내역이':_curFilter==='use'?'사용 내역이':'환불 내역이')+
+        ' 없습니다</p>'
+    +'</div>';
+    return;
   }
+  el.innerHTML = filtered.map(renderItem).join('');
 }
 
-function loadMore() {
-  _curPage++;
-  loadActivity(_curPage, false);
+function updateSummary(items) {
+  const buyAmt    = items.filter(i=>i.type==='buy').reduce((s,i)=>s+(i.amount||0),0);
+  const useAmt    = items.filter(i=>i.type==='use').reduce((s,i)=>s+(i.amount||0),0);
+  const refundAmt = items.filter(i=>i.type==='refund').reduce((s,i)=>s+(i.amount||0),0);
+  const buyCnt    = items.filter(i=>i.type==='buy').length;
+  const useCnt    = items.filter(i=>i.type==='use').length;
+  const refundCnt = items.filter(i=>i.type==='refund').length;
+  document.getElementById('sumBuy').textContent    = buyCnt+'건 '+buyAmt.toLocaleString()+'원';
+  document.getElementById('sumUse').textContent    = useCnt+'건 '+useAmt.toLocaleString()+'원';
+  document.getElementById('sumRefund').textContent = refundCnt+'건 '+refundAmt.toLocaleString()+'원';
+}
+
+async function loadActivity() {
+  const el = document.getElementById('content');
+  el.innerHTML = '<div class="card text-center py-12"><i class="fas fa-spinner fa-spin text-2xl" style="color:#84cc16"></i></div>';
+  document.getElementById('sumBuy').textContent    = '-';
+  document.getElementById('sumUse').textContent    = '-';
+  document.getElementById('sumRefund').textContent = '-';
+  try {
+    const ym = getYearMonth();
+    const r  = await API.get('/coupons/my/activity?type=all&year_month='+ym);
+    _allItems = r.items || [];
+    updateSummary(_allItems);
+    renderFiltered();
+  } catch(e) {
+    el.innerHTML = '<div class="card text-center py-10" style="color:#ef4444">불러올 수 없습니다</div>';
+  }
 }
 
 window.addEventListener('DOMContentLoaded', async () => {
   if (!requireAuth('customer')) return;
-  // URL hash로 탭 초기화 지원 (#use, #refund 등)
+  // 현재 KST 기준 연/월로 초기화
+  const now = new Date(Date.now() + 9*60*60*1000);
+  _curYear  = now.getFullYear();
+  _curMonth = now.getMonth() + 1;
+  updateMonthUI();
+
+  // URL hash로 탭 초기화 지원
   const hash = location.hash.replace('#','');
-  if (['buy','use','refund'].includes(hash)) setFilter(hash);
-  else loadActivity(1, true);
+  if (['buy','use','refund'].includes(hash)) {
+    _curFilter = hash;
+    ['all','buy','use','refund'].forEach(k => {
+      const btn = document.getElementById('ftab_'+k);
+      const on  = k === hash;
+      btn.style.background = on ? '#0a1628' : '#f4f7fb';
+      btn.style.color      = on ? '#fff'    : '#8e9ab4';
+      btn.style.fontWeight = on ? '700'     : '500';
+    });
+  }
+  loadActivity();
 });
 </script>
 `)

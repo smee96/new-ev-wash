@@ -2,695 +2,311 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>EV-Wash 서비스 제안서</title>
+<title>EV-Wash 제안서</title>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@300;400;500;700;900&display=swap');
-
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap');
+  * { margin:0; padding:0; box-sizing:border-box; }
   body {
-    font-family: 'Noto Sans KR', 'Apple SD Gothic Neo', sans-serif;
-    background: #d1d5db;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 24px;
-    min-height: 100vh;
-    gap: 12px;
+    font-family:'Noto Sans KR',sans-serif;
+    background:#ccc;
+    display:flex; justify-content:center; align-items:flex-start;
+    padding:24px; min-height:100vh;
   }
-
   .print-btn {
-    position: fixed;
-    top: 16px; right: 16px;
-    background: #0a1628;
-    color: #bef264;
-    border: 2px solid #84cc16;
-    padding: 10px 22px;
-    border-radius: 10px;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
-    z-index: 999;
-    font-family: inherit;
-    letter-spacing: -0.3px;
+    position:fixed; top:16px; right:16px;
+    background:#0a1628; color:#bef264;
+    border:2px solid #84cc16;
+    padding:10px 22px; border-radius:10px;
+    font-size:14px; font-weight:700; cursor:pointer;
+    font-family:inherit; z-index:999;
   }
-  .print-btn:hover { background: #1a2e48; }
-
-  /* ── A4 페이지 ── */
   .page {
-    width: 210mm;
-    height: 297mm;
-    background: #fff;
-    position: relative;
-    overflow: hidden;
-    box-shadow: 0 8px 40px rgba(0,0,0,0.18);
-    display: flex;
-    flex-direction: column;
+    width:210mm; height:297mm;
+    background:#fff;
+    display:flex; flex-direction:column;
+    box-shadow:0 8px 40px rgba(0,0,0,.2);
+    overflow:hidden;
   }
 
-  /* ── 헤더 ── */
-  .header {
-    background: linear-gradient(135deg, #0a1628 0%, #0f2444 100%);
-    padding: 20px 30px 18px;
-    position: relative;
-    overflow: hidden;
-    flex-shrink: 0;
+  /* 헤더 */
+  .hd {
+    background:#0a1628;
+    padding:26px 36px 22px;
+    flex-shrink:0;
   }
-  .header::before {
-    content: '';
-    position: absolute;
-    right: -60px; top: -60px;
-    width: 220px; height: 220px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(132,204,22,0.12) 0%, transparent 70%);
-  }
-  .header::after {
-    content: '';
-    position: absolute;
-    left: -30px; bottom: -40px;
-    width: 150px; height: 150px;
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(59,130,246,0.08) 0%, transparent 70%);
-  }
-
-  .header-inner {
-    position: relative;
-    z-index: 1;
-  }
-
-  .header-top {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
-  }
-
-  .logo {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
+  .hd-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .logo { display:flex; align-items:center; gap:12px; }
   .logo-icon {
-    width: 40px; height: 40px;
-    background: linear-gradient(135deg, #84cc16, #65a30d);
-    border-radius: 11px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 22px;
-    box-shadow: 0 2px 12px rgba(132,204,22,0.35);
+    width:48px; height:48px;
+    background:#84cc16; border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px;
   }
-  .logo-name {
-    font-size: 24px;
-    font-weight: 900;
-    color: #bef264;
-    letter-spacing: -0.5px;
-    line-height: 1;
-  }
-  .logo-tagline {
-    font-size: 9.5px;
-    color: rgba(255,255,255,0.4);
-    font-weight: 400;
-    letter-spacing: 0.3px;
-    margin-top: 2px;
-  }
+  .logo-name { font-size:28px; font-weight:900; color:#bef264; letter-spacing:-1px; }
+  .logo-sub  { font-size:11px; color:rgba(255,255,255,.4); margin-top:2px; }
   .badge {
-    background: rgba(132,204,22,0.15);
-    border: 1px solid rgba(132,204,22,0.35);
-    color: #bef264;
-    font-size: 9.5px;
-    font-weight: 700;
-    padding: 4px 11px;
-    border-radius: 20px;
-    letter-spacing: 0.4px;
+    background:rgba(132,204,22,.15); border:1px solid rgba(132,204,22,.35);
+    color:#bef264; font-size:11px; font-weight:700;
+    padding:5px 14px; border-radius:20px;
   }
+  .hd-title {
+    font-size:22px; font-weight:900; color:#fff;
+    line-height:1.45; letter-spacing:-0.5px;
+  }
+  .hd-title em { color:#bef264; font-style:normal; }
+  .hd-desc { font-size:12px; color:rgba(255,255,255,.5); margin-top:7px; line-height:1.6; }
+  .hd-desc strong { color:rgba(255,255,255,.8); }
 
-  .header-headline {
-    font-size: 19px;
-    font-weight: 800;
-    color: #ffffff;
-    line-height: 1.4;
-    margin-bottom: 6px;
-    letter-spacing: -0.5px;
-  }
-  .header-headline em {
-    color: #bef264;
-    font-style: normal;
-  }
+  /* 본문 */
+  .body { flex:1; padding:22px 36px; display:flex; flex-direction:column; gap:16px; overflow:hidden; }
 
-  .header-sub {
-    font-size: 10.5px;
-    color: rgba(255,255,255,0.48);
-    line-height: 1.65;
-    letter-spacing: -0.1px;
-  }
-  .header-sub strong {
-    color: rgba(255,255,255,0.75);
-    font-weight: 600;
-  }
-
-  /* ── 본문 ── */
-  .body {
-    flex: 1;
-    padding: 18px 30px 0;
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    overflow: hidden;
-  }
-
-  /* 섹션 라벨 */
   .sec-label {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 10px;
-    font-weight: 700;
-    color: #1e3a5f;
-    letter-spacing: 0.6px;
-    text-transform: uppercase;
-    margin-bottom: 7px;
+    font-size:11px; font-weight:700; color:#1e3a5f;
+    letter-spacing:.5px; display:flex; align-items:center; gap:8px;
+    margin-bottom:8px;
   }
   .sec-label::before {
-    content: '';
-    display: block;
-    width: 3px; height: 13px;
-    background: #84cc16;
-    border-radius: 2px;
-    flex-shrink: 0;
+    content:''; width:4px; height:15px;
+    background:#84cc16; border-radius:2px; display:block;
   }
 
-  /* ── 이용 흐름 ── */
-  .flow-wrap {
-    background: #f8fafc;
-    border: 1px solid #e8ecf3;
-    border-radius: 12px;
-    padding: 13px 16px;
-  }
-
+  /* 흐름 */
   .flow {
-    display: flex;
-    align-items: center;
-    gap: 0;
+    background:#f7f9fc; border:1px solid #e4e9f2; border-radius:14px;
+    padding:16px 20px;
+    display:flex; align-items:flex-start; gap:0;
   }
+  .step { flex:1; text-align:center; position:relative; padding:0 4px; }
+  .step+.step::before {
+    content:'›'; position:absolute; left:-6px; top:22px;
+    font-size:22px; color:#84cc16; font-weight:900; line-height:1;
+  }
+  .step-ico {
+    width:44px; height:44px; border-radius:50%; background:#eef2fb;
+    display:flex; align-items:center; justify-content:center;
+    font-size:22px; margin:0 auto 7px;
+  }
+  .step.hl .step-ico { background:#0a1628; }
+  .step-name { font-size:11px; font-weight:700; color:#1e3a5f; margin-bottom:3px; }
+  .step-desc { font-size:10px; color:#8fa3bf; line-height:1.45; }
 
-  .flow-step {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
-    padding: 2px 4px;
-    position: relative;
+  /* 2열 */
+  .two-col { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+  .card { background:#f7f9fc; border:1px solid #e4e9f2; border-radius:14px; padding:16px 18px; }
+  .card-ttl {
+    font-size:13px; font-weight:700; color:#1e3a5f;
+    display:flex; align-items:center; gap:8px; margin-bottom:10px;
   }
+  .card-ico {
+    width:30px; height:30px; background:#0a1628; border-radius:9px;
+    display:flex; align-items:center; justify-content:center; font-size:16px;
+  }
+  .cl { list-style:none; display:flex; flex-direction:column; gap:5px; }
+  .cl li {
+    font-size:11px; color:#4a5e7a;
+    padding-left:14px; position:relative; line-height:1.5;
+  }
+  .cl li::before { content:'✓'; position:absolute; left:0; color:#84cc16; font-weight:700; }
 
-  .flow-step + .flow-step::before {
-    content: '›';
-    position: absolute;
-    left: -5px;
-    top: 50%;
-    transform: translateY(-55%);
-    font-size: 18px;
-    color: #84cc16;
-    font-weight: 900;
-    line-height: 1;
-  }
-
-  .step-circle {
-    width: 36px; height: 36px;
-    border-radius: 50%;
-    background: #eef3fc;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 17px;
-    margin-bottom: 5px;
-    flex-shrink: 0;
-  }
-  .flow-step.hl .step-circle {
-    background: #0a1628;
-    box-shadow: 0 2px 10px rgba(10,22,40,0.25);
-  }
-  .step-name {
-    font-size: 9px;
-    font-weight: 700;
-    color: #1e3a5f;
-    margin-bottom: 2px;
-  }
-  .flow-step.hl .step-name { color: #0a1628; }
-  .step-desc {
-    font-size: 8.5px;
-    color: #8fa3bf;
-    line-height: 1.45;
-  }
-  .num-badge {
-    display: inline-block;
-    background: #84cc16;
-    color: #0a1628;
-    font-size: 8px;
-    font-weight: 800;
-    width: 14px; height: 14px;
-    border-radius: 50%;
-    line-height: 14px;
-    text-align: center;
-    margin-bottom: 4px;
-  }
-
-  /* ── 2열 혜택 ── */
-  .two-col {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 12px;
-  }
-
-  .card {
-    background: #f8fafc;
-    border: 1px solid #e8ecf3;
-    border-radius: 12px;
-    padding: 13px 14px;
-  }
-  .card-title {
-    font-size: 11px;
-    font-weight: 700;
-    color: #1e3a5f;
-    display: flex;
-    align-items: center;
-    gap: 7px;
-    margin-bottom: 8px;
-  }
-  .card-icon {
-    width: 26px; height: 26px;
-    background: #0a1628;
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px;
-    flex-shrink: 0;
-  }
-  .check-list {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-  }
-  .check-list li {
-    font-size: 9.5px;
-    color: #4a5e7a;
-    padding-left: 12px;
-    position: relative;
-    line-height: 1.5;
-  }
-  .check-list li::before {
-    content: '✓';
-    position: absolute;
-    left: 0;
-    color: #84cc16;
-    font-weight: 800;
-    font-size: 8.5px;
-  }
-
-  /* ── 수수료 + 예시 ── */
-  .fee-row {
-    display: grid;
-    grid-template-columns: auto 1fr;
-    gap: 12px;
-    align-items: stretch;
-  }
-
+  /* 정산 */
+  .fee-row { display:grid; grid-template-columns:140px 1fr; gap:14px; align-items:stretch; }
   .fee-box {
-    background: linear-gradient(145deg, #0a1628, #14294d);
-    border-radius: 12px;
-    padding: 14px 18px;
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    min-width: 130px;
+    background:linear-gradient(145deg,#0a1628,#14294d);
+    border-radius:14px; padding:18px 20px;
+    display:flex; flex-direction:column; justify-content:center;
   }
-  .fee-label {
-    font-size: 9px;
-    color: rgba(255,255,255,0.42);
-    margin-bottom: 3px;
-    letter-spacing: 0.3px;
-  }
-  .fee-num {
-    font-size: 38px;
-    font-weight: 900;
-    color: #bef264;
-    line-height: 1;
-    letter-spacing: -1px;
-  }
-  .fee-num sup {
-    font-size: 16px;
-    vertical-align: top;
-    margin-top: 6px;
-    display: inline-block;
-    font-weight: 700;
-    color: rgba(255,255,255,0.6);
-  }
-  .fee-note {
-    font-size: 9px;
-    color: rgba(255,255,255,0.42);
-    line-height: 1.6;
-    margin-top: 8px;
-  }
-  .fee-note strong {
-    color: rgba(255,255,255,0.75);
-  }
+  .fee-lbl { font-size:10px; color:rgba(255,255,255,.4); margin-bottom:4px; }
+  .fee-num { font-size:46px; font-weight:900; color:#bef264; line-height:1; letter-spacing:-2px; }
+  .fee-num sup { font-size:20px; vertical-align:top; margin-top:8px; display:inline-block; color:rgba(255,255,255,.5); }
+  .fee-note { font-size:10px; color:rgba(255,255,255,.4); line-height:1.7; margin-top:10px; }
+  .fee-note strong { color:rgba(255,255,255,.75); }
 
-  .example-box {
-    background: #f0fdf4;
-    border: 1px solid #bbf7d0;
-    border-radius: 12px;
-    padding: 12px 15px;
-    flex: 1;
-  }
-  .example-title {
-    font-size: 10px;
-    font-weight: 700;
-    color: #15803d;
-    margin-bottom: 8px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-  }
+  .ex { background:#f0fdf4; border:1px solid #bbf7d0; border-radius:14px; padding:16px 18px; }
+  .ex-ttl { font-size:12px; font-weight:700; color:#15803d; margin-bottom:10px; }
   .ex-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    font-size: 10px;
-    color: #374151;
-    padding: 4px 0;
-    border-bottom: 1px solid rgba(187,247,208,0.7);
-    gap: 8px;
+    display:flex; justify-content:space-between;
+    font-size:12px; color:#374151;
+    padding:5px 0; border-bottom:1px solid rgba(187,247,208,.7);
   }
-  .ex-row:last-child { border-bottom: none; padding-bottom: 0; }
-  .ex-row .label { color: #52667a; flex-shrink: 0; }
-  .ex-row .val { font-weight: 700; color: #1e3a5f; text-align: right; }
-  .ex-row .val.plus { color: #16a34a; }
-  .ex-row .val.minus { color: #dc2626; }
-  .ex-row.total { background: rgba(132,204,22,0.1); margin: 4px -4px 0; padding: 5px 4px 0; border-radius: 6px; border-bottom: none; }
-  .ex-row.total .val { font-size: 12px; color: #15803d; }
-  .ex-note {
-    font-size: 8.5px;
-    color: #6b7280;
-    margin-top: 5px;
-    line-height: 1.5;
-  }
+  .ex-row:last-child { border-bottom:none; }
+  .ex-row .lbl { color:#52667a; }
+  .ex-row .val { font-weight:700; color:#1e3a5f; }
+  .ex-row .plus { color:#16a34a; font-size:14px; }
+  .ex-row .minus { color:#dc2626; }
+  .ex-note { font-size:10px; color:#6b7280; margin-top:8px; line-height:1.6; }
 
-  /* ── 핵심 강점 스트립 ── */
-  .strip {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 8px;
-  }
-  .strip-item {
-    background: #0a1628;
-    border-radius: 10px;
-    padding: 10px 8px;
-    text-align: center;
-  }
-  .strip-icon {
-    font-size: 18px;
-    margin-bottom: 4px;
-  }
-  .strip-title {
-    font-size: 9.5px;
-    font-weight: 700;
-    color: #bef264;
-    margin-bottom: 3px;
-  }
-  .strip-desc {
-    font-size: 8.5px;
-    color: rgba(255,255,255,0.45);
-    line-height: 1.5;
-  }
-
-  /* ── 푸터 ── */
+  /* 푸터 */
   .footer {
-    background: #0a1628;
-    padding: 13px 30px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
-    flex-shrink: 0;
+    background:#0a1628; padding:16px 36px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+    flex-shrink:0;
   }
-  .footer-logo {
-    display: flex;
-    align-items: center;
-    gap: 8px;
+  .ft-logo { display:flex; align-items:center; gap:10px; }
+  .ft-mark {
+    width:36px; height:36px; background:#84cc16; border-radius:10px;
+    display:flex; align-items:center; justify-content:center; font-size:20px;
   }
-  .footer-logo-mark {
-    width: 30px; height: 30px;
-    background: linear-gradient(135deg, #84cc16, #65a30d);
-    border-radius: 8px;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 16px;
-  }
-  .footer-brand {
-    font-size: 14px;
-    font-weight: 900;
-    color: #bef264;
-    letter-spacing: -0.3px;
-  }
-  .footer-url {
-    font-size: 9px;
-    color: rgba(255,255,255,0.35);
-    margin-top: 1px;
-  }
-  .footer-contact {
-    text-align: center;
-  }
-  .footer-contact p {
-    font-size: 11px;
-    font-weight: 600;
-    color: #fff;
-    margin-bottom: 2px;
-  }
-  .footer-contact span {
-    font-size: 9px;
-    color: rgba(255,255,255,0.4);
-  }
-  .cta-group {
-    display: flex;
-    gap: 7px;
-  }
+  .ft-name { font-size:17px; font-weight:900; color:#bef264; }
+  .ft-url  { font-size:10px; color:rgba(255,255,255,.35); margin-top:2px; }
+  .ft-mid { text-align:center; }
+  .ft-mid p { font-size:13px; font-weight:700; color:#fff; margin-bottom:3px; }
+  .ft-mid span { font-size:10px; color:rgba(255,255,255,.4); }
+  .ctas { display:flex; gap:8px; }
   .cta {
-    font-size: 9.5px;
-    font-weight: 700;
-    padding: 8px 13px;
-    border-radius: 8px;
-    text-align: center;
-    line-height: 1.4;
-    letter-spacing: -0.2px;
-    font-family: inherit;
+    font-size:11px; font-weight:700; padding:10px 16px;
+    border-radius:9px; text-align:center; line-height:1.4;
+    cursor:pointer; font-family:inherit;
   }
-  .cta-primary {
-    background: #84cc16;
-    color: #0a1628;
-    border: none;
-  }
-  .cta-outline {
-    background: transparent;
-    border: 1px solid rgba(255,255,255,0.25);
-    color: rgba(255,255,255,0.65);
-  }
+  .cta-p { background:#84cc16; color:#0a1628; border:none; }
+  .cta-o { background:transparent; border:1px solid rgba(255,255,255,.25); color:rgba(255,255,255,.65); }
 
-  /* ── 인쇄 ── */
   @media print {
-    body { background: #fff; padding: 0; margin: 0; }
-    .page {
-      box-shadow: none;
-      width: 210mm;
-      height: 297mm;
-    }
-    @page { size: A4 portrait; margin: 0; }
-    .print-btn { display: none; }
+    body { background:#fff; padding:0; }
+    .page { box-shadow:none; width:210mm; height:297mm; }
+    @page { size:A4 portrait; margin:0; }
+    .print-btn { display:none; }
   }
 </style>
 </head>
 <body>
-
 <button class="print-btn" onclick="window.print()">🖨️ 인쇄 / PDF 저장</button>
 
 <div class="page">
 
-  <!-- ── 헤더 ── -->
-  <div class="header">
-    <div class="header-inner">
-      <div class="header-top">
-        <div class="logo">
-          <div class="logo-icon">⚡</div>
-          <div>
-            <div class="logo-name">EV-Wash</div>
-            <div class="logo-tagline">전기차 세차 쿠폰 플랫폼</div>
-          </div>
+  <!-- 헤더 -->
+  <div class="hd">
+    <div class="hd-top">
+      <div class="logo">
+        <div class="logo-icon">⚡</div>
+        <div>
+          <div class="logo-name">EV-Wash</div>
+          <div class="logo-sub">전기차 세차 쿠폰 플랫폼</div>
         </div>
-        <div class="badge">주유소 사업주 전용 제안서</div>
       </div>
-      <div class="header-headline">
-        세차 쿠폰을 <em>앱으로 판매</em>하고,<br>
-        정산은 <em>자동</em>으로 받으세요.
-      </div>
-      <div class="header-sub">
-        고객 앱 결제 → 주유소 방문 → <strong>QR 스캔 1회</strong>로 사용 완료 → 플랫폼 자동 정산&nbsp;&nbsp;|&nbsp;&nbsp;
-        별도 단말기·POS <strong>불필요</strong>·초기 비용 <strong>0원</strong>
-      </div>
+      <div class="badge">주유소 사업주 전용 제안서</div>
+    </div>
+    <div class="hd-title">
+      세차 쿠폰을 <em>앱으로 판매</em>하고,<br>
+      정산은 <em>자동</em>으로 받으세요.
+    </div>
+    <div class="hd-desc">
+      고객 앱 결제 → 주유소 방문 → <strong>QR 스캔 1회</strong> 사용 완료 → 플랫폼 자동 정산 &nbsp;|&nbsp;
+      단말기·POS <strong>불필요</strong> · 초기 비용 <strong>0원</strong>
     </div>
   </div>
 
-  <!-- ── 본문 ── -->
+  <!-- 본문 -->
   <div class="body">
 
-    <!-- 이용 흐름 -->
-    <div class="flow-wrap">
-      <div class="sec-label" style="margin-bottom:10px">이용 흐름</div>
+    <!-- 흐름 -->
+    <div>
+      <div class="sec-label">이용 흐름</div>
       <div class="flow">
-        <div class="flow-step">
-          <div class="num-badge">1</div>
-          <div class="step-circle">📱</div>
-          <div class="step-name">앱 쿠폰 구매</div>
-          <div class="step-desc">고객이 스마트폰으로<br>세차 쿠폰 결제</div>
+        <div class="step">
+          <div class="step-ico">📱</div>
+          <div class="step-name">① 앱 구매</div>
+          <div class="step-desc">고객이 세차<br>쿠폰 결제</div>
         </div>
-        <div class="flow-step">
-          <div class="num-badge">2</div>
-          <div class="step-circle">🚗</div>
-          <div class="step-name">주유소 방문</div>
-          <div class="step-desc">세차 서비스<br>이용 요청</div>
+        <div class="step">
+          <div class="step-ico">🚗</div>
+          <div class="step-name">② 방문</div>
+          <div class="step-desc">주유소<br>세차 요청</div>
         </div>
-        <div class="flow-step hl">
-          <div class="num-badge">3</div>
-          <div class="step-circle">📲</div>
-          <div class="step-name">QR 스캔 1회</div>
-          <div class="step-desc">사장님 QR에<br>스캔 → 즉시 차감</div>
+        <div class="step hl">
+          <div class="step-ico">📲</div>
+          <div class="step-name">③ QR 스캔</div>
+          <div class="step-desc">스캔 1회로<br>즉시 차감</div>
         </div>
-        <div class="flow-step">
-          <div class="num-badge">4</div>
-          <div class="step-circle">✅</div>
-          <div class="step-name">사용 완료</div>
-          <div class="step-desc">양쪽 앱에서<br>실시간 확인</div>
+        <div class="step">
+          <div class="step-ico">✅</div>
+          <div class="step-name">④ 완료</div>
+          <div class="step-desc">양쪽 앱<br>실시간 확인</div>
         </div>
-        <div class="flow-step">
-          <div class="num-badge">5</div>
-          <div class="step-circle">💰</div>
-          <div class="step-name">자동 정산</div>
-          <div class="step-desc">사용 건수 기준<br>자동 지급</div>
+        <div class="step">
+          <div class="step-ico">💰</div>
+          <div class="step-name">⑤ 자동 정산</div>
+          <div class="step-desc">사용 건수<br>기준 자동 지급</div>
         </div>
       </div>
     </div>
 
-    <!-- 혜택 2열 -->
+    <!-- 혜택 -->
     <div class="two-col">
       <div class="card">
-        <div class="card-title">
-          <div class="card-icon">🏪</div>
-          사장님 혜택
-        </div>
-        <ul class="check-list">
-          <li>단말기·POS 설치 <strong>불필요</strong>, 초기 비용 0원</li>
-          <li>QR코드 1개만 출력해 부착하면 준비 완료</li>
-          <li>쿠폰 단가·종류 직접 설정 (프리미엄·기본 등)</li>
-          <li>사용 내역·정산 현황 앱에서 실시간 확인</li>
-          <li>미사용 쿠폰은 정산 대상 아님 (구매만으론 수수료 없음)</li>
-          <li>매월 자동 정산 — 별도 청구 절차 없음</li>
+        <div class="card-ttl"><div class="card-ico">🏪</div> 사장님 혜택</div>
+        <ul class="cl">
+          <li>단말기·POS 불필요, 초기 비용 0원</li>
+          <li>QR코드 1개 부착으로 즉시 운영</li>
+          <li>쿠폰 단가·종류 직접 설정</li>
+          <li>사용내역·정산 앱에서 실시간 확인</li>
+          <li>미사용 쿠폰은 정산 대상 아님</li>
         </ul>
       </div>
       <div class="card">
-        <div class="card-title">
-          <div class="card-icon">👤</div>
-          고객 이용 편의
-        </div>
-        <ul class="check-list">
-          <li>현금·카드 없이 앱에서 간편 결제</li>
-          <li>세차 쿠폰 여러 장 미리 구매 보관 가능</li>
-          <li>QR 스캔 1번으로 사용 완료, 잔여 매수 즉시 표시</li>
-          <li>결제·사용·환불 내역 앱에서 한눈에 확인</li>
-          <li>미사용 쿠폰 환불 신청 가능 (고객 직접 처리)</li>
-          <li>전기차 특화 세차 서비스 검색·예약 지원</li>
+        <div class="card-ttl"><div class="card-ico">👤</div> 고객 편의</div>
+        <ul class="cl">
+          <li>앱에서 간편 결제, 현금·카드 불필요</li>
+          <li>쿠폰 여러 장 미리 구매 가능</li>
+          <li>QR 스캔 1번, 잔여 매수 즉시 표시</li>
+          <li>결제·사용·환불 내역 앱에서 확인</li>
+          <li>미사용 시 환불 신청 가능</li>
         </ul>
       </div>
     </div>
 
-    <!-- 수수료 구조 + 예시 -->
+    <!-- 정산 구조 -->
     <div>
       <div class="sec-label">정산 구조</div>
       <div class="fee-row">
         <div class="fee-box">
-          <div class="fee-label">플랫폼 수수료 (사용 건 기준)</div>
+          <div class="fee-lbl">플랫폼 수수료</div>
           <div class="fee-num">15<sup>%</sup></div>
           <div class="fee-note">
-            · 쿠폰 <strong>구매 시</strong>엔 수수료 없음<br>
-            · 실제 <strong>세차 사용 건</strong>에만 적용<br>
-            · 미사용·환불 → 수수료 없이 전액 반환
+            · 구매 시 수수료 <strong>없음</strong><br>
+            · <strong>사용 건</strong>에만 적용<br>
+            · 미사용·환불 → 전액 반환
           </div>
         </div>
-        <div class="example-box">
-          <div class="example-title">💡 월 운영 예시 — 세차 50회 (단가 7,000원)</div>
+        <div class="ex">
+          <div class="ex-ttl">💡 월 운영 예시 — 세차 50회, 단가 7,000원</div>
           <div class="ex-row">
-            <span class="label">고객 세차 사용액</span>
+            <span class="lbl">고객 세차 사용액</span>
             <span class="val">50회 × 7,000원 = 350,000원</span>
           </div>
           <div class="ex-row">
-            <span class="label">플랫폼 수수료 (15%)</span>
-            <span class="val minus">- 52,500원</span>
+            <span class="lbl">플랫폼 수수료 15%</span>
+            <span class="val minus">− 52,500원</span>
           </div>
-          <div class="ex-row total">
-            <span class="label" style="font-weight:700;color:#15803d">주유소 정산 수령액 ✓</span>
+          <div class="ex-row" style="background:rgba(132,204,22,.08);padding:7px 4px;border-radius:8px;margin-top:4px">
+            <span class="lbl" style="font-weight:700;color:#15803d">주유소 정산 수령 ✓</span>
             <span class="val plus">297,500원</span>
           </div>
-          <div class="ex-note">
-            * 쿠폰 구매만 하고 미사용 시 → 수수료 없음 / 고객 직접 환불 처리<br>
-            * 정산 주기·방식은 플랫폼 운영 정책에 따라 적용
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- 핵심 강점 4개 -->
-    <div>
-      <div class="sec-label">도입 포인트</div>
-      <div class="strip">
-        <div class="strip-item">
-          <div class="strip-icon">🔌</div>
-          <div class="strip-title">설치 비용 0원</div>
-          <div class="strip-desc">QR코드 1장으로<br>즉시 운영 시작</div>
-        </div>
-        <div class="strip-item">
-          <div class="strip-icon">📊</div>
-          <div class="strip-title">실시간 대시보드</div>
-          <div class="strip-desc">사용·정산 현황<br>앱에서 바로 확인</div>
-        </div>
-        <div class="strip-item">
-          <div class="strip-icon">🔄</div>
-          <div class="strip-title">자동 정산</div>
-          <div class="strip-desc">사용 건 기준 자동 계산<br>별도 청구 불필요</div>
-        </div>
-        <div class="strip-item">
-          <div class="strip-icon">⚡</div>
-          <div class="strip-title">전기차 특화</div>
-          <div class="strip-desc">EV 전용 세차<br>신규 고객 유입 기대</div>
+          <div class="ex-note">* 미사용 쿠폰은 수수료 없음 · 정산 주기는 플랫폼 정책 적용</div>
         </div>
       </div>
     </div>
 
   </div>
 
-  <!-- ── 푸터 CTA ── -->
+  <!-- 푸터 -->
   <div class="footer">
-    <div class="footer-logo">
-      <div class="footer-logo-mark">⚡</div>
+    <div class="ft-logo">
+      <div class="ft-mark">⚡</div>
       <div>
-        <div class="footer-brand">EV-Wash</div>
-        <div class="footer-url">new-ev-wash.pages.dev</div>
+        <div class="ft-name">EV-Wash</div>
+        <div class="ft-url">ev-wash.com</div>
       </div>
     </div>
-    <div class="footer-contact">
+    <div class="ft-mid">
       <p>지금 바로 등록 신청하세요</p>
       <span>문의: bensmee96@gmail.com</span>
     </div>
-    <div class="cta-group">
-      <button class="cta cta-primary">무료로<br>등록 신청</button>
-      <button class="cta cta-outline">앱 직접<br>체험하기</button>
+    <div class="ctas">
+      <button class="cta cta-p">무료로<br>등록 신청</button>
+      <button class="cta cta-o">앱 직접<br>체험하기</button>
     </div>
   </div>
 
-</div><!-- .page -->
-
+</div>
 </body>
 </html>

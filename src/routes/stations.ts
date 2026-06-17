@@ -416,8 +416,8 @@ stations.get('/my-stations/:id/qr-image', async (c) => {
   const token = c.req.query('token') || c.req.header('Authorization')?.replace('Bearer ', '')
   if (!token) return c.json({ error: '인증이 필요합니다.' }, 401)
 
-  const { verifyJWT } = await import('../utils/jwt')
-  const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev-secret-key')
+  const { verifyJWT, getJwtSecret } = await import('../utils/jwt')
+  const payload = await verifyJWT(token, getJwtSecret(c.env.JWT_SECRET))
   if (!payload) return c.json({ error: '유효하지 않은 토큰입니다.' }, 401)
 
   const stationId = c.req.param('id')
@@ -484,9 +484,9 @@ stations.post('/:id/use-coupon', authMiddleware, requireRole('customer'), async 
 
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO coupon_usages (purchase_id, user_id, station_id, coupon_id, unit_price, qr_code)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(purchase_id, user.userId, stationId, purchase.coupon_id, pricePerUse, qr_code),
+      `INSERT INTO coupon_usages (purchase_id, user_id, station_id, coupon_id, unit_price, wash_count_used, qr_code, used_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`
+    ).bind(purchase_id, user.userId, stationId, purchase.coupon_id, pricePerUse, qr_code, kstNow()),
     c.env.DB.prepare(
       `UPDATE coupon_purchases
        SET remaining_uses = remaining_uses - 1,
@@ -532,9 +532,9 @@ stations.post('/my-stations/:id/use-coupon', authMiddleware, requireRole('statio
   // 쿠폰 사용 처리
   await c.env.DB.batch([
     c.env.DB.prepare(
-      `INSERT INTO coupon_usages (purchase_id, user_id, station_id, coupon_id, unit_price, qr_code)
-       VALUES (?, ?, ?, ?, ?, ?)`
-    ).bind(purchase_id, purchase.user_id, stationId, purchase.coupon_id, pricePerUse, qr_code),
+      `INSERT INTO coupon_usages (purchase_id, user_id, station_id, coupon_id, unit_price, wash_count_used, qr_code, used_at)
+       VALUES (?, ?, ?, ?, ?, 1, ?, ?)`
+    ).bind(purchase_id, purchase.user_id, stationId, purchase.coupon_id, pricePerUse, qr_code, kstNow()),
     c.env.DB.prepare(
       `UPDATE coupon_purchases SET remaining_uses = remaining_uses - 1,
        status = CASE WHEN remaining_uses - 1 = 0 THEN 'used' ELSE status END,
@@ -601,35 +601,36 @@ stations.get('/my-stations/:id/settlements', authMiddleware, requireRole('statio
     const lastDay = new Date(y, m, 0).getDate()
     dateTo = yearMonth + '-' + String(lastDay).padStart(2,'0')
   }
-  const settleDateFilter = dateFrom
-    ? `AND settlement_date BETWEEN '${dateFrom}' AND '${dateTo}'`
-    : ''
-  const usageDateFilter = dateFrom
-    ? `AND date(used_at) BETWEEN '${dateFrom}' AND '${dateTo}'`
-    : ''
+  const settleWhere = dateFrom ? 'AND settlement_date BETWEEN ? AND ?' : ''
+  const usageWhere  = dateFrom ? 'AND date(used_at) BETWEEN ? AND ?' : ''
+  const dateParams  = dateFrom ? [dateFrom, dateTo] : []
 
   // 정산 목록
   const settlements = await c.env.DB.prepare(
     `SELECT id, settlement_date, gross_amount, platform_fee, net_amount, usage_count, status, processed_at
-     FROM settlements WHERE station_id = ? ${settleDateFilter}
+     FROM settlements WHERE station_id = ? ${settleWhere}
      ORDER BY settlement_date DESC LIMIT 50`
-  ).bind(stationId).all()
+  ).bind(stationId, ...dateParams).all()
 
   // 해당 기간 완료된 정산 합계
   const settledTotal = await c.env.DB.prepare(
     `SELECT COALESCE(SUM(net_amount),0) as total, COUNT(*) as cnt
-     FROM settlements WHERE station_id = ? AND status='completed' ${settleDateFilter}`
-  ).bind(stationId).first<any>()
+     FROM settlements WHERE station_id = ? AND status='completed' ${settleWhere}`
+  ).bind(stationId, ...dateParams).first<any>()
 
   // 해당 기간 미정산 사용 금액 (settled=0)
   const pendingUsage = await c.env.DB.prepare(
     `SELECT COALESCE(SUM(unit_price),0) as total, COUNT(*) as cnt
-     FROM coupon_usages WHERE station_id = ? AND settled = 0 ${usageDateFilter}`
-  ).bind(stationId).first<any>()
+     FROM coupon_usages WHERE station_id = ? AND settled = 0 ${usageWhere}`
+  ).bind(stationId, ...dateParams).first<any>()
 
-  const pendingGross  = pendingUsage?.total || 0
-  const feeRate       = 0.15
-  const pendingNet    = Math.floor(pendingGross * (1 - feeRate))
+  const feeSetting = await c.env.DB.prepare(
+    `SELECT value FROM platform_settings WHERE key = 'platform_fee_rate' LIMIT 1`
+  ).first<any>()
+  const feeRate = feeSetting?.value ? parseFloat(feeSetting.value) : 0.15
+
+  const pendingGross = pendingUsage?.total || 0
+  const pendingNet   = Math.floor(pendingGross * (1 - feeRate))
 
   return c.json({
     settlements:      settlements.results,

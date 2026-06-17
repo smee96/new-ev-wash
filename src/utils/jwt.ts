@@ -121,6 +121,11 @@ export function generateId(): string {
   return crypto.randomUUID()
 }
 
+export function getJwtSecret(secret: string | undefined): string {
+  if (!secret) throw new Error('JWT_SECRET environment variable is not configured')
+  return secret
+}
+
 // KST (UTC+9) 현재 시각 → 'YYYY-MM-DD HH:MM:SS'
 export function kstNow(): string {
   const d = new Date(Date.now() + 9 * 60 * 60 * 1000)

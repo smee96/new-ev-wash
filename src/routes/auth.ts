@@ -1,6 +1,6 @@
 // 인증 API 라우트 (이메일/소셜 로그인)
 import { Hono } from 'hono'
-import { signJWT, verifyPassword, hashPassword, generateId } from '../utils/jwt'
+import { signJWT, verifyPassword, hashPassword, generateId, getJwtSecret } from '../utils/jwt'
 import type { Env } from '../types'
 
 const auth = new Hono<{ Bindings: Env }>()
@@ -40,7 +40,7 @@ auth.post('/register', async (c) => {
   const userId = result.meta.last_row_id as number
   const token = await signJWT(
     { userId, email, name, userType: userType || 'customer' },
-    c.env.JWT_SECRET || 'dev-secret-key'
+    getJwtSecret(c.env.JWT_SECRET)
   )
 
   return c.json({
@@ -89,7 +89,7 @@ auth.post('/login', async (c) => {
 
   const token = await signJWT(
     { userId: user.id, email: user.email, name: user.name, userType: user.user_type },
-    c.env.JWT_SECRET || 'dev-secret-key'
+    getJwtSecret(c.env.JWT_SECRET)
   )
 
   return c.json({
@@ -132,19 +132,15 @@ auth.get('/kakao/callback', async (c) => {
     const result = await upsertSocialUser(c.env.DB, 'kakao', socialId, email, name)
     const token = await signJWT(
       { userId: result.id, email: result.email, name: result.name, userType: result.user_type },
-      c.env.JWT_SECRET || 'dev-secret-key'
+      getJwtSecret(c.env.JWT_SECRET)
     )
 
-    return c.html(`
-      <script>
-        window.opener?.postMessage({
-          type: 'social_login',
-          token: '${token}',
-          user: ${JSON.stringify({ id: result.id, email: result.email, name: result.name, userType: result.user_type })}
-        }, '*');
-        window.close();
-      </script>
-    `)
+    const payload = JSON.stringify({
+      type: 'social_login',
+      token,
+      user: { id: result.id, email: result.email, name: result.name, userType: result.user_type },
+    })
+    return c.html(`<script>window.opener?.postMessage(${payload}, '*'); window.close();</script>`)
   } catch (err) {
     console.error('[Kakao Auth]', err)
     return c.html('<script>alert("카카오 로그인에 실패했습니다."); window.close();</script>')
@@ -186,19 +182,15 @@ auth.get('/naver/callback', async (c) => {
     const result = await upsertSocialUser(c.env.DB, 'naver', socialId, email, name)
     const token = await signJWT(
       { userId: result.id, email: result.email, name: result.name, userType: result.user_type },
-      c.env.JWT_SECRET || 'dev-secret-key'
+      getJwtSecret(c.env.JWT_SECRET)
     )
 
-    return c.html(`
-      <script>
-        window.opener?.postMessage({
-          type: 'social_login',
-          token: '${token}',
-          user: ${JSON.stringify({ id: result.id, email: result.email, name: result.name, userType: result.user_type })}
-        }, '*');
-        window.close();
-      </script>
-    `)
+    const payload = JSON.stringify({
+      type: 'social_login',
+      token,
+      user: { id: result.id, email: result.email, name: result.name, userType: result.user_type },
+    })
+    return c.html(`<script>window.opener?.postMessage(${payload}, '*'); window.close();</script>`)
   } catch (err) {
     console.error('[Naver Auth]', err)
     return c.html('<script>alert("네이버 로그인에 실패했습니다."); window.close();</script>')

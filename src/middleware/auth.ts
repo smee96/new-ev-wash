@@ -1,6 +1,6 @@
 // 인증 미들웨어
 import { Context, Next } from 'hono'
-import { verifyJWT } from '../utils/jwt'
+import { verifyJWT, getJwtSecret } from '../utils/jwt'
 import type { Env, JWTPayload } from '../types'
 
 type AuthEnv = { Bindings: Env; Variables: { user: JWTPayload } }
@@ -11,7 +11,7 @@ export async function authMiddleware(c: Context<AuthEnv>, next: Next) {
     return c.json({ error: '인증이 필요합니다.' }, 401)
   }
   const token = authHeader.slice(7)
-  const payload = await verifyJWT(token, c.env.JWT_SECRET || 'dev-secret-key')
+  const payload = await verifyJWT(token, getJwtSecret(c.env.JWT_SECRET))
   if (!payload) {
     return c.json({ error: '유효하지 않은 토큰입니다.' }, 401)
   }

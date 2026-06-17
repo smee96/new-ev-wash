@@ -222,8 +222,8 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     dateTo = yearMonth + '-' + String(lastDay).padStart(2,'0') + ' 23:59:59'
   }
 
-  const addDateFilter = (col: string) =>
-    dateFrom ? ` AND ${col} BETWEEN '${dateFrom}' AND '${dateTo}'` : ''
+  const dateWhere = (col: string) => dateFrom ? ` AND ${col} BETWEEN ? AND ?` : ''
+  const dateParams = dateFrom ? [dateFrom, dateTo] : []
 
   // 1) 구매 내역
   const buyRows = await c.env.DB.prepare(`
@@ -239,8 +239,8 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     FROM coupon_purchases p
     JOIN coupons c ON p.coupon_id = c.id
     JOIN stations s ON p.station_id = s.id
-    WHERE p.user_id = ?${addDateFilter('p.created_at')}
-  `).bind(user.userId).all()
+    WHERE p.user_id = ?${dateWhere('p.created_at')}
+  `).bind(user.userId, ...dateParams).all()
 
   // 2) 사용 내역
   const useRows = await c.env.DB.prepare(`
@@ -256,8 +256,8 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     FROM coupon_usages cu
     JOIN coupons c ON cu.coupon_id = c.id
     JOIN stations s ON cu.station_id = s.id
-    WHERE cu.user_id = ?${addDateFilter('cu.used_at')}
-  `).bind(user.userId).all()
+    WHERE cu.user_id = ?${dateWhere('cu.used_at')}
+  `).bind(user.userId, ...dateParams).all()
 
   // 3) 환불 내역
   const refundRows = await c.env.DB.prepare(`
@@ -274,8 +274,8 @@ coupons.get('/my/activity', authMiddleware, requireRole('customer'), async (c) =
     JOIN coupon_purchases cp ON r.purchase_id = cp.id
     JOIN coupons c ON cp.coupon_id = c.id
     JOIN stations s ON r.station_id = s.id
-    WHERE r.user_id = ?${addDateFilter('r.created_at')}
-  `).bind(user.userId).all()
+    WHERE r.user_id = ?${dateWhere('r.created_at')}
+  `).bind(user.userId, ...dateParams).all()
 
   // 합쳐서 event_at 기준 내림차순 정렬
   let all: any[] = []
@@ -309,8 +309,16 @@ coupons.post('/buy', authMiddleware, requireRole('customer'), async (c) => {
   ).bind(couponId).first<any>()
   if (!coupon) return c.json({ error: '구매할 수 없는 쿠폰입니다.' }, 400)
 
-  if (coupon.total_stock !== null && coupon.remaining_stock < quantity) {
-    return c.json({ error: '재고가 부족합니다.' }, 400)
+  // 재고 차감을 먼저 원자적으로 시도 (Race Condition 방지)
+  if (coupon.total_stock !== null) {
+    const decrResult = await c.env.DB.prepare(
+      `UPDATE coupons SET remaining_stock = remaining_stock - ?
+       WHERE id = ? AND remaining_stock >= ?`
+    ).bind(quantity, couponId, quantity).run()
+
+    if (decrResult.meta.changes === 0) {
+      return c.json({ error: '재고가 부족합니다.' }, 400)
+    }
   }
 
   const totalAmount = coupon.discount_price * quantity
@@ -320,12 +328,6 @@ coupons.post('/buy', authMiddleware, requireRole('customer'), async (c) => {
     `INSERT INTO temp_orders (order_id, user_id, coupon_id, quantity, unit_price, total_amount)
      VALUES (?, ?, ?, ?, ?, ?)`
   ).bind(orderId, user.userId, couponId, quantity, coupon.discount_price, totalAmount).run()
-
-  if (coupon.total_stock !== null) {
-    await c.env.DB.prepare(
-      `UPDATE coupons SET remaining_stock = remaining_stock - ? WHERE id = ?`
-    ).bind(quantity, couponId).run()
-  }
 
   const appUrl = c.env.APP_URL || 'http://localhost:3000'
   const clientKey = c.env.TOSS_CLIENT_KEY || 'test_ck_placeholder'
@@ -345,7 +347,7 @@ coupons.post('/buy', authMiddleware, requireRole('customer'), async (c) => {
     amount: totalAmount,
     clientKey,
     successUrl: `${appUrl}/payment/success?orderId=${orderId}`,
-    failUrl: `${appUrl}/payment/fail?orderId=${orderId}`,
+    failUrl: `${appUrl}/api/payment/fail?orderId=${orderId}`,
     refundPolicy,  // 결제 UI에서 고지용
   })
 })
@@ -376,7 +378,7 @@ coupons.get('/payment/success', async (c) => {
     const tossData = await tossRes.json<any>()
     if (!tossRes.ok) {
       console.error('[Toss] 결제 승인 실패:', tossData)
-      return c.redirect(`/payment/fail?orderId=${orderId}&reason=${tossData.code || 'TOSS_ERROR'}`)
+      return c.redirect(`/api/payment/fail?orderId=${orderId}`)
     }
 
     // 결제수단 추출 (Toss 응답에서)
@@ -397,7 +399,7 @@ coupons.get('/payment/success', async (c) => {
     ).bind(orderId).first<any>()
     if (!order) {
       console.error('[Payment] order_not_found:', orderId)
-      return c.redirect('/payment/fail?reason=order_not_found')
+      return c.redirect(`/api/payment/fail?orderId=${orderId}`)
     }
 
     const coupon = await c.env.DB.prepare(
@@ -420,7 +422,7 @@ coupons.get('/payment/success', async (c) => {
     return c.redirect(`/payment/success?orderId=${orderId}&done=1`)
   } catch (err: any) {
     console.error('[Payment Success] error:', err?.message || err)
-    return c.redirect(`/payment/fail?orderId=${orderId}&reason=${encodeURIComponent(err?.message || 'server_error')}`)
+    return c.redirect(`/api/payment/fail?orderId=${orderId}`)
   }
 })
 

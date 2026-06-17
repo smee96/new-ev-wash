@@ -158,29 +158,29 @@ export function stationListPage(): string {
   const kakaoHead = '';
   return htmlPage('주유소 찾기', `
 <style>
-#mapWrap { width:100%; height:calc(100vh - 148px); position:relative; }
+#mapWrap { width:100%; height:calc(100vh - 212px); position:relative; }
+#mapWrap * { user-select:none; -webkit-user-select:none; }
 #map { width:100%; height:100%; }
 #listWrap { display:none; }
 #myLocBtn {
-  position:absolute; right:14px; bottom:20px; z-index:100;
-  width:48px; height:48px; border-radius:50%;
-  background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.18);
-  border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  position:absolute; right:14px; bottom:16px; z-index:200;
+  width:52px; height:52px; border-radius:50%;
+  background:#fff; box-shadow:0 3px 14px rgba(0,0,0,.25);
+  border:2px solid #e0e7ef; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+#myLocBtn:hover { background:#f0f7ff; }
+@media (min-width:768px) {
+  #mapWrap { height:calc(100vh - 160px); max-height:680px; }
 }
 </style>
 
 <div class="min-h-screen pb-24" style="display:flex;flex-direction:column">
-  <!-- 검색바 (내 위치 버튼 제거 → 지도 안으로 이동) -->
+  <!-- 헤더 + 탭 -->
   <div class="bg-white sticky top-0 z-50 px-4 pt-3 pb-2 border-b" style="border-color:#eef1f7;padding-top:max(12px,env(safe-area-inset-top))">
-    <div class="flex gap-2 mb-2">
-      <div class="relative flex-1">
-        <input id="si" type="search" placeholder="주유소명 또는 지역 검색" class="input pl-10"
-          style="background:#f4f7fb;font-size:15px"
-          oninput="debounce()" onkeydown="if(event.key==='Enter')doSearch()">
-        <i class="fas fa-search absolute left-3.5 top-4 text-sm" style="color:#8e9ab4"></i>
-      </div>
+    <div class="flex items-center justify-between mb-2">
+      <h1 class="text-lg font-bold" style="color:#1a2f5e">주유소</h1>
     </div>
-    <!-- 지도/목록 전환 탭 -->
     <div class="flex rounded-xl overflow-hidden" style="border:1px solid #eef1f7">
       <button id="tabMap" onclick="showMap()" class="flex-1 py-2 text-sm font-semibold flex items-center justify-center gap-1.5" style="background:#1a2f5e;color:#bef264">
         <i class="fas fa-map"></i> 지도
@@ -191,18 +191,16 @@ export function stationListPage(): string {
     </div>
   </div>
 
-  <!-- 카카오맵 + 내 위치 버튼 -->
+  <!-- 지도 뷰 -->
   <div id="mapWrap">
     <div id="map"></div>
-    <!-- 지도 우측 하단 내 위치 동그라미 버튼 -->
     <button id="myLocBtn" onclick="getLocation()" title="내 위치">
       <i class="fas fa-location-crosshairs" style="font-size:20px;color:#3b82f6"></i>
     </button>
   </div>
 
-  <!-- 주유소 목록 -->
+  <!-- 목록 뷰 -->
   <div id="listWrap" class="p-4">
-    <!-- 정렬 버튼 -->
     <div class="flex gap-2 mb-3">
       <button id="sortName" onclick="setSort('name')" class="px-3 py-1.5 rounded-full text-xs font-semibold" style="background:#1a2f5e;color:#bef264">이름순</button>
       <button id="sortDist" onclick="setSort('distance')" class="px-3 py-1.5 rounded-full text-xs font-semibold" style="background:#f4f7fb;color:#8e9ab4">거리순</button>
@@ -316,10 +314,11 @@ function renderMarkers(list) {
     bounds.extend(pos);
     var distText = (s.distance != null) ? ' · ' + s.distance.toFixed(1) + 'km' : '';
     var content = [
-      '<div style="display:flex;flex-direction:column;align-items:center">',
+      '<div style="display:flex;flex-direction:column;align-items:center;user-select:none;-webkit-user-select:none">',
         '<div data-sid="' + s.id + '" style="background:#1a2f5e;color:#bef264;border-radius:20px;',
           'padding:6px 14px;font-size:12px;font-weight:700;white-space:nowrap;',
-          'box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;border:2px solid #bef264">',
+          'box-shadow:0 2px 8px rgba(0,0,0,.3);cursor:pointer;border:2px solid #bef264;',
+          'user-select:none;-webkit-user-select:none">',
           s.station_name + distText,
         '</div>',
         '<div style="width:0;height:0;border-left:6px solid transparent;',
@@ -334,6 +333,11 @@ function renderMarkers(list) {
     try { map.setBounds(bounds, 60); } catch(e) {}
   }
 }
+
+/* ── 마커 핀 텍스트 선택 방지 (selectstart만 막기) ── */
+document.addEventListener('selectstart', function(e) {
+  if (e.target.closest('[data-sid]')) { e.preventDefault(); }
+});
 
 /* ── 마커 핀 클릭 → 상세 이동 ── */
 document.addEventListener('click', function(e) {
@@ -507,7 +511,7 @@ window.addEventListener('DOMContentLoaded', async function() {
     var mapHtml = '';
     var naviHtml = '';
     if (s.latitude && s.longitude) {
-      mapHtml = '<div id="detailMap" style="width:100%;height:190px;border-radius:14px;overflow:hidden;margin-top:12px"></div>';
+      mapHtml = '<div id="detailMap" style="width:100%;height:190px;border-radius:14px;overflow:hidden;margin-top:12px;user-select:none;-webkit-user-select:none"></div>';
       naviHtml = '<button onclick="openKakaoNavi()" class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold mt-2" style="background:#FEE500;color:#3C1E1E">'
         + '<img src="https://developers.kakao.com/assets/img/about/logos/kakaolink/kakaolink_btn_small.png" style="width:18px;height:18px">카카오맵 길찾기</button>';
     }
@@ -551,7 +555,7 @@ window.addEventListener('DOMContentLoaded', async function() {
             map: dm, position: pos, yAnchor: 2.8,
             content: '<div style="background:#1a2f5e;color:#bef264;border-radius:16px;padding:4px 10px;'
               + 'font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.2);'
-              + 'border:2px solid #bef264;white-space:nowrap">' + name + '</div>'
+              + 'border:2px solid #bef264;white-space:nowrap;user-select:none;-webkit-user-select:none">' + name + '</div>'
           });
         }
         if (typeof kakao !== 'undefined' && kakao.maps && kakao.maps.Map) {

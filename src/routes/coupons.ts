@@ -427,11 +427,15 @@ coupons.get('/payment/success', async (c) => {
 // 결제 취소/실패
 coupons.get('/payment/fail', async (c) => {
   const orderId = c.req.query('orderId')
+  let stationId: number | null = null
   if (orderId) {
     const order = await c.env.DB.prepare(
-      `SELECT * FROM temp_orders WHERE order_id = ? AND status = 'pending'`
+      `SELECT o.*, c.station_id FROM temp_orders o
+       JOIN coupons c ON o.coupon_id = c.id
+       WHERE o.order_id = ? AND o.status = 'pending'`
     ).bind(orderId).first<any>()
     if (order) {
+      stationId = order.station_id
       await c.env.DB.batch([
         c.env.DB.prepare(
           `UPDATE temp_orders SET status = 'failed' WHERE order_id = ?`
@@ -443,7 +447,9 @@ coupons.get('/payment/fail', async (c) => {
       ])
     }
   }
-  return c.redirect(`/payment/fail?reason=cancelled`)
+  // 원래 주유소 상세 페이지로 돌아가기 (히스토리 루프 방지)
+  const backUrl = stationId ? `/stations/${stationId}` : '/stations'
+  return c.redirect(`/payment/fail?reason=cancelled&back=${encodeURIComponent(backUrl)}`)
 })
 
 // ============================================================

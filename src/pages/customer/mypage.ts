@@ -228,8 +228,16 @@ export function paymentFailPage(): string {
   </div>
   <h2 class="text-xl font-bold mb-2" style="color:#1a202c">결제 실패</h2>
   <p id="reason" class="mb-8" style="color:#8e9ab4">결제가 취소되었거나 오류가 발생했습니다.</p>
-  <button onclick="history.back()" class="btn btn-outline" style="width:auto;display:inline-block;padding:14px 36px">돌아가기</button>
+  <button id="backBtn" class="btn btn-outline" style="width:auto;display:inline-block;padding:14px 36px">돌아가기</button>
 </div>
-<script>const p=new URLSearchParams(location.search);const reason=p.get('reason');if(reason)document.getElementById('reason').textContent='사유: '+reason;</script>
+<script>
+  const p = new URLSearchParams(location.search);
+  const reason = p.get('reason');
+  const back = p.get('back') || '/stations';
+  if (reason) document.getElementById('reason').textContent = '결제가 취소되었거나 오류가 발생했습니다.';
+  document.getElementById('backBtn').addEventListener('click', function() {
+    window.location.replace(back);
+  });
+</script>
 `)
 }

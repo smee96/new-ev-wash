@@ -4,14 +4,20 @@ import { htmlPage } from '../layout'
 export function myCouponsPage(): string {
   return htmlPage('내 쿠폰', `
 <style>
-#couponMapWrap { width:100%; height:calc(100vh - 148px); position:relative; }
+#couponMapWrap { width:100%; height:calc(100vh - 212px); position:relative; }
+#couponMapWrap * { user-select:none; -webkit-user-select:none; }
 #couponMap { width:100%; height:100%; }
 #couponListWrap { display:none; }
 #couponLocBtn {
-  position:absolute; right:14px; bottom:20px; z-index:100;
-  width:48px; height:48px; border-radius:50%;
-  background:#fff; box-shadow:0 2px 10px rgba(0,0,0,.18);
-  border:none; cursor:pointer; display:flex; align-items:center; justify-content:center;
+  position:absolute; right:14px; bottom:16px; z-index:200;
+  width:52px; height:52px; border-radius:50%;
+  background:#fff; box-shadow:0 3px 14px rgba(0,0,0,.25);
+  border:2px solid #e0e7ef; cursor:pointer;
+  display:flex; align-items:center; justify-content:center;
+}
+#couponLocBtn:hover { background:#f0f7ff; }
+@media (min-width:768px) {
+  #couponMapWrap { height:calc(100vh - 160px); max-height:680px; }
 }
 </style>
 
@@ -112,10 +118,11 @@ function renderCouponMarkers(stations) {
     var pos = new kakao.maps.LatLng(s.latitude, s.longitude);
     bounds.extend(pos);
     var content = [
-      '<div style="display:flex;flex-direction:column;align-items:center">',
+      '<div style="display:flex;flex-direction:column;align-items:center;user-select:none;-webkit-user-select:none">',
         '<div data-sid="' + s.station_id + '" style="background:#0a1628;color:#bef264;border-radius:20px;',
           'padding:6px 14px;font-size:12px;font-weight:700;white-space:nowrap;',
-          'box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;border:2px solid #84cc16">',
+          'box-shadow:0 2px 8px rgba(0,0,0,.35);cursor:pointer;border:2px solid #84cc16;',
+          'user-select:none;-webkit-user-select:none">',
           s.station_name + ' · ' + s.remaining_quantity + '회',
         '</div>',
         '<div style="width:0;height:0;border-left:6px solid transparent;',
@@ -128,6 +135,11 @@ function renderCouponMarkers(stations) {
   });
   try { couponMap.setBounds(bounds, 80); } catch(e) {}
 }
+
+/* 핀 클릭 텍스트 선택 방지 (selectstart만 막기) */
+document.addEventListener('selectstart', function(e) {
+  if (e.target.closest('[data-sid]')) { e.preventDefault(); }
+});
 
 /* 핀 클릭 → 주유소 상세 */
 document.addEventListener('click', function(e) {
@@ -331,7 +343,7 @@ async function loadDetail() {
     // 지도 HTML (주유소 탭 상세와 동일)
     var mapHtml='';
     if(s?.latitude && s?.longitude){
-      mapHtml='<div id="detailMap" style="width:100%;height:190px;border-radius:14px;overflow:hidden;margin-top:12px"></div>'
+      mapHtml='<div id="detailMap" style="width:100%;height:190px;border-radius:14px;overflow:hidden;margin-top:12px;user-select:none;-webkit-user-select:none"></div>'
         +'<button onclick="openCouponNavi()" class="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl text-sm font-semibold mt-2" style="background:#FEE500;color:#3C1E1E">'
         +'<i class="fas fa-diamond-turn-right"></i>카카오맵 길찾기</button>';
     }
@@ -355,9 +367,9 @@ async function loadDetail() {
         +'<span class="badge '+(p.remaining_uses>0?'badge-green':'badge-gray')+' flex-shrink-0">'+p.remaining_uses+'회</span>'
         +'</div>'
         +(p.remaining_uses>0
-          ?'<div class="flex gap-2">'
-           +'<button onclick="currentPurchaseId='+p.id+';openQR()" class="btn btn-outline btn-sm" style="flex:1">QR 사용</button>'
-           +'<button onclick="openRefundModal('+p.id+','+p.remaining_uses+','+p.total_amount+','+p.unit_price+','+p.wash_count+')" class="btn btn-danger btn-sm" style="flex:1">환불</button>'
+          ?'<div class="flex flex-col gap-2">'
+           +'<button onclick="currentPurchaseId='+p.id+';openQR()" style="width:100%;padding:16px;border-radius:14px;background:#1a2f5e;color:#bef264;font-size:17px;font-weight:700;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 4px 12px rgba(26,47,94,.25)"><i class="fas fa-qrcode" style="font-size:20px"></i> QR 사용</button>'
+           +'<button onclick="openRefundModal('+p.id+','+p.remaining_uses+','+p.total_amount+','+p.unit_price+','+p.wash_count+')" style="width:100%;padding:8px;border-radius:10px;background:none;color:#bbb;font-size:12px;font-weight:500;border:1px solid #e2e8f0;cursor:pointer">환불 신청</button>'
            +'</div>'
           :'')
         +'</div>'
@@ -377,7 +389,7 @@ async function loadDetail() {
           new kakao.maps.Marker({map:dm,position:pos});
           new kakao.maps.CustomOverlay({
             map:dm,position:pos,yAnchor:2.8,
-            content:'<div style="background:#1a2f5e;color:#bef264;border-radius:16px;padding:4px 10px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.2);border:2px solid #bef264;white-space:nowrap">'+name+'</div>'
+            content:'<div style="background:#1a2f5e;color:#bef264;border-radius:16px;padding:4px 10px;font-size:11px;font-weight:700;box-shadow:0 2px 6px rgba(0,0,0,.2);border:2px solid #bef264;white-space:nowrap;user-select:none;-webkit-user-select:none">'+name+'</div>'
           });
         }
         if(typeof kakao!=='undefined'&&kakao.maps&&kakao.maps.Map){drawMap();}
